@@ -16,8 +16,7 @@ import { PageHeader, StatCard } from "@/components/ui-bits";
 import { Progress } from "@/components/ui/progress";
 import type { RoutineState } from "@/features/routine-types";
 import { DEFAULT_ROUTINE } from "@/features/routine-types";
-import type { HabitState } from "@/features/habit-types";
-import { DEFAULT_HABITS } from "@/features/habit-types";
+import { useHabits, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   ssr: false,
