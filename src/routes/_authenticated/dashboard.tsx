@@ -111,7 +111,7 @@ function Dashboard() {
         />
         <StatCard
           label="Habits Today"
-          value={`${habitsDone}/${habits.items.length}`}
+          value={`${habitsDone}/${positiveHabits.length}`}
           hint="Keep the streak alive"
           icon={<ListChecks className="h-4 w-4" />}
           accent="accent"
