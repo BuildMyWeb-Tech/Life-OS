@@ -14,7 +14,134 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      lifeos_categories: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string | null
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      lifeos_habit_logs: {
+        Row: {
+          created_at: string
+          done: boolean
+          habit_id: string
+          id: string
+          log_date: string
+          note: string | null
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          habit_id: string
+          id?: string
+          log_date: string
+          note?: string | null
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          habit_id?: string
+          id?: string
+          log_date?: string
+          note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifeos_habit_logs_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_habits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lifeos_habits: {
+        Row: {
+          archived: boolean
+          category_id: string | null
+          created_at: string
+          description: string | null
+          emoji: string | null
+          frequency: string
+          id: string
+          kind: string
+          name: string
+          parent_id: string | null
+          priority: string
+          reminder_time: string | null
+          sort_order: number
+          target: number | null
+        }
+        Insert: {
+          archived?: boolean
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          frequency?: string
+          id?: string
+          kind?: string
+          name: string
+          parent_id?: string | null
+          priority?: string
+          reminder_time?: string | null
+          sort_order?: number
+          target?: number | null
+        }
+        Update: {
+          archived?: boolean
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          frequency?: string
+          id?: string
+          kind?: string
+          name?: string
+          parent_id?: string | null
+          priority?: string
+          reminder_time?: string | null
+          sort_order?: number
+          target?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifeos_habits_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lifeos_habits_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_habits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
