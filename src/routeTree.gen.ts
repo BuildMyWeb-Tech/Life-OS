@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRoutineRouteImport } from './routes/_authenticated/routine'
 import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
+import { Route as AuthenticatedNegativeHabitsRouteImport } from './routes/_authenticated/negative-habits'
 import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated/health'
 import { Route as AuthenticatedHabitsRouteImport } from './routes/_authenticated/habits'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -43,6 +44,12 @@ const AuthenticatedNotesRoute = AuthenticatedNotesRouteImport.update({
   path: '/notes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedNegativeHabitsRoute =
+  AuthenticatedNegativeHabitsRouteImport.update({
+    id: '/negative-habits',
+    path: '/negative-habits',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedHealthRoute = AuthenticatedHealthRouteImport.update({
   id: '/health',
   path: '/health',
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
   '/health': typeof AuthenticatedHealthRoute
+  '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/notes': typeof AuthenticatedNotesRoute
   '/routine': typeof AuthenticatedRoutineRoute
 }
@@ -81,6 +89,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
   '/health': typeof AuthenticatedHealthRoute
+  '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/notes': typeof AuthenticatedNotesRoute
   '/routine': typeof AuthenticatedRoutineRoute
 }
@@ -93,6 +102,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/habits': typeof AuthenticatedHabitsRoute
   '/_authenticated/health': typeof AuthenticatedHealthRoute
+  '/_authenticated/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/_authenticated/notes': typeof AuthenticatedNotesRoute
   '/_authenticated/routine': typeof AuthenticatedRoutineRoute
 }
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/habits'
     | '/health'
+    | '/negative-habits'
     | '/notes'
     | '/routine'
   fileRoutesByTo: FileRoutesByTo
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/habits'
     | '/health'
+    | '/negative-habits'
     | '/notes'
     | '/routine'
   id:
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/habits'
     | '/_authenticated/health'
+    | '/_authenticated/negative-habits'
     | '/_authenticated/notes'
     | '/_authenticated/routine'
   fileRoutesById: FileRoutesById
@@ -173,6 +186,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/negative-habits': {
+      id: '/_authenticated/negative-habits'
+      path: '/negative-habits'
+      fullPath: '/negative-habits'
+      preLoaderRoute: typeof AuthenticatedNegativeHabitsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/health': {
       id: '/_authenticated/health'
       path: '/health'
@@ -209,6 +229,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHabitsRoute: typeof AuthenticatedHabitsRoute
   AuthenticatedHealthRoute: typeof AuthenticatedHealthRoute
+  AuthenticatedNegativeHabitsRoute: typeof AuthenticatedNegativeHabitsRoute
   AuthenticatedNotesRoute: typeof AuthenticatedNotesRoute
   AuthenticatedRoutineRoute: typeof AuthenticatedRoutineRoute
 }
@@ -218,6 +239,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHabitsRoute: AuthenticatedHabitsRoute,
   AuthenticatedHealthRoute: AuthenticatedHealthRoute,
+  AuthenticatedNegativeHabitsRoute: AuthenticatedNegativeHabitsRoute,
   AuthenticatedNotesRoute: AuthenticatedNotesRoute,
   AuthenticatedRoutineRoute: AuthenticatedRoutineRoute,
 }
