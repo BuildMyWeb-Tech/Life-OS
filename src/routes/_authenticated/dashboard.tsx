@@ -16,8 +16,7 @@ import { PageHeader, StatCard } from "@/components/ui-bits";
 import { Progress } from "@/components/ui/progress";
 import type { RoutineState } from "@/features/routine-types";
 import { DEFAULT_ROUTINE } from "@/features/routine-types";
-import type { HabitState } from "@/features/habit-types";
-import { DEFAULT_HABITS } from "@/features/habit-types";
+import { useHabits, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   ssr: false,
@@ -41,16 +40,19 @@ function greeting() {
 
 function Dashboard() {
   const [routine] = useLocal<RoutineState>("lifeos:routine", DEFAULT_ROUTINE);
-  const [habits] = useLocal<HabitState>("lifeos:habits", DEFAULT_HABITS);
+  const today = todayKey();
+  const { data: allHabits = [] } = useHabits();
+  const positiveHabits = allHabits.filter((h) => h.kind === "positive");
+  const { data: todayLogs = [] } = useHabitLogs(today, today);
+  const todaySet = useMemo(() => logIndex(todayLogs), [todayLogs]);
   const [water] = useLocal<Record<string, number>>("lifeos:water", {});
   const [sleep] = useLocal<Record<string, { sleep: string; wake: string; hours: number }>>("lifeos:sleep", {});
 
-  const today = todayKey();
   const doneToday = routine.items.filter((i) => routine.completion[today]?.[i.id]).length;
   const totalToday = routine.items.length;
   const dailyPct = totalToday ? Math.round((doneToday / totalToday) * 100) : 0;
 
-  const habitsDone = habits.items.filter((h) => habits.logs[today]?.[h.id]).length;
+  const habitsDone = positiveHabits.filter((h) => isDone(todaySet, h.id, today)).length;
 
   const { weeklyPct, monthlyPct } = useMemo(() => {
     const week = Array.from({ length: 7 }, (_, i) => daysAgo(i));
@@ -109,7 +111,7 @@ function Dashboard() {
         />
         <StatCard
           label="Habits Today"
-          value={`${habitsDone}/${habits.items.length}`}
+          value={`${habitsDone}/${positiveHabits.length}`}
           hint="Keep the streak alive"
           icon={<ListChecks className="h-4 w-4" />}
           accent="accent"

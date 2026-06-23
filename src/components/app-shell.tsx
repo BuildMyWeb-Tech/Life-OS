@@ -9,6 +9,9 @@ import {
   Sparkles,
   Menu,
   X,
+  Calendar as CalendarIcon,
+  Tags,
+  Ban,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,8 +21,11 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/calendar", label: "Calendar", icon: CalendarIcon },
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
   { to: "/habits", label: "Habits", icon: Flame },
+  { to: "/categories", label: "Categories", icon: Tags },
+  { to: "/negative-habits", label: "Avoid List", icon: Ban },
   { to: "/health", label: "Water & Sleep", icon: Droplets },
   { to: "/notes", label: "Notes", icon: StickyNote },
 ] as const;
