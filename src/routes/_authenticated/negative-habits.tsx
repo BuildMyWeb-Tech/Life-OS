@@ -149,13 +149,11 @@ function NegativeHabitsPage() {
               </div>
 
               <button
-                onClick={() =>
-                  toggle.mutate({
-                    habit_id: h.id,
-                    log_date: today,
-                    done: !todayOK,
-                  })
-                }
+                onClick={() => {
+                  const next = !todayOK;
+                  toggle.mutate({ habit_id: h.id, log_date: today, done: next });
+                  mirrorHabitToRoutine(h.name, next, today);
+                }}
                 className={cn(
                   "mb-3 w-full rounded-xl border border-border px-4 py-2.5 text-sm font-medium transition",
                   todayOK
