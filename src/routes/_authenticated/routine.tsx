@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { GripVertical, Plus, Pencil, Trash2, Copy, Clock, StickyNote } from "lucide-react";
 import { toast } from "sonner";
