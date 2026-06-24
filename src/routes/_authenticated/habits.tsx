@@ -7,11 +7,14 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  ChevronsRight,
   GitBranch,
 } from "lucide-react";
 import { PageHeader, StatCard } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { mirrorHabitToRoutine } from "@/lib/cross-sync";
 import {
   Select,
   SelectContent,
