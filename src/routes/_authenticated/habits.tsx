@@ -43,13 +43,20 @@ export const Route = createFileRoute("/_authenticated/habits")({
 
 function HabitsPage() {
   const today = todayKey();
-  const days = useMemo(() => Array.from({ length: 14 }, (_, i) => daysAgo(13 - i)), []);
-  const from = days[0]!;
-  const to = days[days.length - 1]!;
+  const PAGE = 10;
+  const [offset, setOffset] = useState(0); // days back from today (offset = newest day shown)
+  const days = useMemo(
+    () =>
+      Array.from({ length: PAGE }, (_, i) => daysAgo(offset + PAGE - 1 - i)),
+    [offset],
+  );
+  // load 90 days for stats so streak/rate are correct regardless of window
+  const statFrom = daysAgo(89);
+  const statTo = today;
 
   const { data: cats = [] } = useCategories();
   const { data: habits = [], isLoading } = useHabits();
-  const { data: logs = [] } = useHabitLogs(from, to);
+  const { data: logs = [] } = useHabitLogs(statFrom, statTo);
   const toggle = useToggleHabit();
   const create = useCreateHabit();
   const del = useDeleteHabit();
@@ -65,23 +72,27 @@ function HabitsPage() {
   const subsOf = (id: string) => positive.filter((h) => h.parent_id === id);
 
   const stats = (id: string) => {
-    let cur = 0, run = 0, longest = 0, done = 0;
     const total = 90;
+    // current streak: consecutive days from today going back
+    let cur = 0;
     for (let i = 0; i < total; i++) {
-      const d = daysAgo(i);
-      const isD = isDone(set, id, d);
-      if (isD) {
-        done++;
+      if (isDone(set, id, daysAgo(i))) cur++;
+      else break;
+    }
+    // longest streak + rate over the window
+    let longest = 0, run = 0, done = 0;
+    for (let i = total - 1; i >= 0; i--) {
+      if (isDone(set, id, daysAgo(i))) {
         run++;
-        if (i === 0 || cur === i) cur = run;
-        longest = Math.max(longest, run);
+        done++;
+        if (run > longest) longest = run;
       } else {
-        if (i === 0) cur = 0;
         run = 0;
       }
     }
     return { current: cur, longest, rate: Math.round((done / total) * 100) };
   };
+
 
   const doneToday = positive.filter((h) => isDone(set, h.id, today)).length;
   const ranked = positive.map((h) => ({ h, s: stats(h.id) })).sort((a, b) => b.s.rate - a.s.rate);
