@@ -17,6 +17,7 @@ import {
   isDone,
 } from "@/features/habits-db";
 import { cn } from "@/lib/utils";
+import { mirrorHabitToRoutine } from "@/lib/cross-sync";
 
 export const Route = createFileRoute("/_authenticated/negative-habits")({
   ssr: false,
