@@ -239,13 +239,11 @@ function HabitsPage() {
                           onToggleOpen={() =>
                             setCollapsed((c) => ({ ...c, [h.id]: !c[h.id] }))
                           }
-                          onToggle={(d) =>
-                            toggle.mutate({
-                              habit_id: h.id,
-                              log_date: d,
-                              done: !isDone(set, h.id, d),
-                            })
-                          }
+                          onToggle={(d) => {
+                            const next = !isDone(set, h.id, d);
+                            toggle.mutate({ habit_id: h.id, log_date: d, done: next });
+                            mirrorHabitToRoutine(h.name, next, d);
+                          }}
                           onDelete={() => del.mutate(h.id)}
                         />,
                       ];
@@ -259,13 +257,11 @@ function HabitsPage() {
                               days={days}
                               set={set}
                               stats={stats(sh.id)}
-                              onToggle={(d) =>
-                                toggle.mutate({
-                                  habit_id: sh.id,
-                                  log_date: d,
-                                  done: !isDone(set, sh.id, d),
-                                })
-                              }
+                              onToggle={(d) => {
+                                const next = !isDone(set, sh.id, d);
+                                toggle.mutate({ habit_id: sh.id, log_date: d, done: next });
+                                mirrorHabitToRoutine(sh.name, next, d);
+                              }}
                               onDelete={() => del.mutate(sh.id)}
                             />,
                           ),
