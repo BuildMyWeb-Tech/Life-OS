@@ -333,7 +333,7 @@ function HabitRow({
               className={cn(
                 "h-7 w-7 rounded-md border border-border transition",
                 done
-                  ? "bg-[var(--gradient-primary)] shadow-[var(--shadow-glow)]"
+                  ? "border-[color:var(--success)]/70 bg-[color:var(--success)]/70 shadow-[0_0_12px_rgba(34,197,94,0.35)]"
                   : "bg-secondary/40 hover:bg-secondary",
               )}
               aria-label={`${h.name} ${d}`}
