@@ -171,13 +171,11 @@ function NegativeHabitsPage() {
                   return (
                     <button
                       key={d}
-                      onClick={() =>
-                        toggle.mutate({
-                          habit_id: h.id,
-                          log_date: d,
-                          done: !ok,
-                        })
-                      }
+                      onClick={() => {
+                        const next = !ok;
+                        toggle.mutate({ habit_id: h.id, log_date: d, done: next });
+                        mirrorHabitToRoutine(h.name, next, d);
+                      }}
                       title={d}
                       className={cn(
                         "h-5 w-5 rounded-sm border transition",
