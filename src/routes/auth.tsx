@@ -20,19 +20,21 @@ function AuthPage() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErr("");
-    setTimeout(() => {
-      if (login(u, p)) {
+    try {
+      const ok = await login(u, p);
+      if (ok) {
         toast.success("Welcome back, Sai 👋");
         nav({ to: "/dashboard" });
       } else {
         setErr("Invalid Username or Password");
       }
+    } finally {
       setLoading(false);
-    }, 300);
+    }
   };
 
   return (

@@ -22,6 +22,7 @@ export type Database = {
           id: string
           name: string
           sort_order: number
+          user_id: string
         }
         Insert: {
           color?: string
@@ -30,6 +31,7 @@ export type Database = {
           id?: string
           name: string
           sort_order?: number
+          user_id?: string
         }
         Update: {
           color?: string
@@ -38,6 +40,7 @@ export type Database = {
           id?: string
           name?: string
           sort_order?: number
+          user_id?: string
         }
         Relationships: []
       }
@@ -49,6 +52,7 @@ export type Database = {
           id: string
           log_date: string
           note: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -57,6 +61,7 @@ export type Database = {
           id?: string
           log_date: string
           note?: string | null
+          user_id?: string
         }
         Update: {
           created_at?: string
@@ -65,6 +70,7 @@ export type Database = {
           id?: string
           log_date?: string
           note?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -92,6 +98,7 @@ export type Database = {
           reminder_time: string | null
           sort_order: number
           target: number | null
+          user_id: string
         }
         Insert: {
           archived?: boolean
@@ -108,6 +115,7 @@ export type Database = {
           reminder_time?: string | null
           sort_order?: number
           target?: number | null
+          user_id?: string
         }
         Update: {
           archived?: boolean
@@ -124,6 +132,7 @@ export type Database = {
           reminder_time?: string | null
           sort_order?: number
           target?: number | null
+          user_id?: string
         }
         Relationships: [
           {
