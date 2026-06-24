@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useHabits, useToggleHabit, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
+import { findHabitByTitle } from "@/lib/cross-sync";
 
 export const Route = createFileRoute("/_authenticated/routine")({
   ssr: false,
