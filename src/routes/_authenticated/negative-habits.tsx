@@ -17,6 +17,7 @@ import {
   isDone,
 } from "@/features/habits-db";
 import { cn } from "@/lib/utils";
+import { mirrorHabitToRoutine } from "@/lib/cross-sync";
 
 export const Route = createFileRoute("/_authenticated/negative-habits")({
   ssr: false,
@@ -148,13 +149,11 @@ function NegativeHabitsPage() {
               </div>
 
               <button
-                onClick={() =>
-                  toggle.mutate({
-                    habit_id: h.id,
-                    log_date: today,
-                    done: !todayOK,
-                  })
-                }
+                onClick={() => {
+                  const next = !todayOK;
+                  toggle.mutate({ habit_id: h.id, log_date: today, done: next });
+                  mirrorHabitToRoutine(h.name, next, today);
+                }}
                 className={cn(
                   "mb-3 w-full rounded-xl border border-border px-4 py-2.5 text-sm font-medium transition",
                   todayOK
@@ -172,13 +171,11 @@ function NegativeHabitsPage() {
                   return (
                     <button
                       key={d}
-                      onClick={() =>
-                        toggle.mutate({
-                          habit_id: h.id,
-                          log_date: d,
-                          done: !ok,
-                        })
-                      }
+                      onClick={() => {
+                        const next = !ok;
+                        toggle.mutate({ habit_id: h.id, log_date: d, done: next });
+                        mirrorHabitToRoutine(h.name, next, d);
+                      }}
                       title={d}
                       className={cn(
                         "h-5 w-5 rounded-sm border transition",

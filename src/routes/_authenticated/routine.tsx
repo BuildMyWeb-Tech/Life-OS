@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { GripVertical, Plus, Pencil, Trash2, Copy, Clock, StickyNote } from "lucide-react";
 import { toast } from "sonner";
@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useHabits, useToggleHabit, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
+import { findHabitByTitle } from "@/lib/cross-sync";
 
 export const Route = createFileRoute("/_authenticated/routine")({
   ssr: false,
@@ -65,7 +67,13 @@ function RoutinePage() {
     });
   };
 
-  const toggle = (id: string) =>
+  const { data: habits = [] } = useHabits();
+  const { data: todayLogs = [] } = useHabitLogs(today, today);
+  const habitToggle = useToggleHabit();
+  const logsSet = useMemo(() => logIndex(todayLogs), [todayLogs]);
+
+  const toggle = (id: string) => {
+    const item = state.items.find((i) => i.id === id);
     setState((s) => ({
       ...s,
       completion: {
@@ -73,6 +81,15 @@ function RoutinePage() {
         [today]: { ...(s.completion[today] ?? {}), [id]: !s.completion[today]?.[id] },
       },
     }));
+    // mirror to matching habit (positive or negative) for today
+    if (item) {
+      const matched = findHabitByTitle(habits, item.title);
+      if (matched) {
+        const currentlyDone = isDone(logsSet, matched.id, today);
+        habitToggle.mutate({ habit_id: matched.id, log_date: today, done: !currentlyDone });
+      }
+    }
+  };
 
   const add = () => {
     if (!adding.trim()) return;

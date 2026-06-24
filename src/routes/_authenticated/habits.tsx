@@ -7,11 +7,14 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  ChevronsRight,
   GitBranch,
 } from "lucide-react";
 import { PageHeader, StatCard } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { mirrorHabitToRoutine } from "@/lib/cross-sync";
 import {
   Select,
   SelectContent,
@@ -40,13 +43,20 @@ export const Route = createFileRoute("/_authenticated/habits")({
 
 function HabitsPage() {
   const today = todayKey();
-  const days = useMemo(() => Array.from({ length: 14 }, (_, i) => daysAgo(13 - i)), []);
-  const from = days[0]!;
-  const to = days[days.length - 1]!;
+  const PAGE = 10;
+  const [offset, setOffset] = useState(0); // days back from today (offset = newest day shown)
+  const days = useMemo(
+    () =>
+      Array.from({ length: PAGE }, (_, i) => daysAgo(offset + PAGE - 1 - i)),
+    [offset],
+  );
+  // load 90 days for stats so streak/rate are correct regardless of window
+  const statFrom = daysAgo(89);
+  const statTo = today;
 
   const { data: cats = [] } = useCategories();
   const { data: habits = [], isLoading } = useHabits();
-  const { data: logs = [] } = useHabitLogs(from, to);
+  const { data: logs = [] } = useHabitLogs(statFrom, statTo);
   const toggle = useToggleHabit();
   const create = useCreateHabit();
   const del = useDeleteHabit();
@@ -62,23 +72,27 @@ function HabitsPage() {
   const subsOf = (id: string) => positive.filter((h) => h.parent_id === id);
 
   const stats = (id: string) => {
-    let cur = 0, run = 0, longest = 0, done = 0;
     const total = 90;
+    // current streak: consecutive days from today going back
+    let cur = 0;
     for (let i = 0; i < total; i++) {
-      const d = daysAgo(i);
-      const isD = isDone(set, id, d);
-      if (isD) {
-        done++;
+      if (isDone(set, id, daysAgo(i))) cur++;
+      else break;
+    }
+    // longest streak + rate over the window
+    let longest = 0, run = 0, done = 0;
+    for (let i = total - 1; i >= 0; i--) {
+      if (isDone(set, id, daysAgo(i))) {
         run++;
-        if (i === 0 || cur === i) cur = run;
-        longest = Math.max(longest, run);
+        done++;
+        if (run > longest) longest = run;
       } else {
-        if (i === 0) cur = 0;
         run = 0;
       }
     }
     return { current: cur, longest, rate: Math.round((done / total) * 100) };
   };
+
 
   const doneToday = positive.filter((h) => isDone(set, h.id, today)).length;
   const ranked = positive.map((h) => ({ h, s: stats(h.id) })).sort((a, b) => b.s.rate - a.s.rate);
@@ -148,6 +162,37 @@ function HabitsPage() {
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
+      <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+        <div>
+          Showing <span className="text-foreground">{days[0]}</span> →{" "}
+          <span className="text-foreground">{days[days.length - 1]}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setOffset((o) => o + PAGE)} title="Older 10 days">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={offset === 0}
+            onClick={() => setOffset((o) => Math.max(0, o - PAGE))}
+            title="Newer 10 days"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={offset === 0}
+            onClick={() => setOffset(0)}
+            title="Jump to today"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+
       <div className="space-y-6">
         {[...cats, { id: "__none__", name: "Uncategorized", color: "#6b7280" }].map((c) => {
           const items = c.id === "__none__" ? noCat : (byCat[c.id] ?? []);
@@ -194,13 +239,11 @@ function HabitsPage() {
                           onToggleOpen={() =>
                             setCollapsed((c) => ({ ...c, [h.id]: !c[h.id] }))
                           }
-                          onToggle={(d) =>
-                            toggle.mutate({
-                              habit_id: h.id,
-                              log_date: d,
-                              done: !isDone(set, h.id, d),
-                            })
-                          }
+                          onToggle={(d) => {
+                            const next = !isDone(set, h.id, d);
+                            toggle.mutate({ habit_id: h.id, log_date: d, done: next });
+                            mirrorHabitToRoutine(h.name, next, d);
+                          }}
                           onDelete={() => del.mutate(h.id)}
                         />,
                       ];
@@ -214,13 +257,11 @@ function HabitsPage() {
                               days={days}
                               set={set}
                               stats={stats(sh.id)}
-                              onToggle={(d) =>
-                                toggle.mutate({
-                                  habit_id: sh.id,
-                                  log_date: d,
-                                  done: !isDone(set, sh.id, d),
-                                })
-                              }
+                              onToggle={(d) => {
+                                const next = !isDone(set, sh.id, d);
+                                toggle.mutate({ habit_id: sh.id, log_date: d, done: next });
+                                mirrorHabitToRoutine(sh.name, next, d);
+                              }}
                               onDelete={() => del.mutate(sh.id)}
                             />,
                           ),
@@ -292,7 +333,7 @@ function HabitRow({
               className={cn(
                 "h-7 w-7 rounded-md border border-border transition",
                 done
-                  ? "bg-[var(--gradient-primary)] shadow-[var(--shadow-glow)]"
+                  ? "border-[color:var(--success)]/70 bg-[color:var(--success)]/70 shadow-[0_0_12px_rgba(34,197,94,0.35)]"
                   : "bg-secondary/40 hover:bg-secondary",
               )}
               aria-label={`${h.name} ${d}`}
