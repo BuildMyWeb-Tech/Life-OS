@@ -162,6 +162,37 @@ function HabitsPage() {
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
+      <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+        <div>
+          Showing <span className="text-foreground">{days[0]}</span> →{" "}
+          <span className="text-foreground">{days[days.length - 1]}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setOffset((o) => o + PAGE)} title="Older 10 days">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={offset === 0}
+            onClick={() => setOffset((o) => Math.max(0, o - PAGE))}
+            title="Newer 10 days"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={offset === 0}
+            onClick={() => setOffset(0)}
+            title="Jump to today"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+
       <div className="space-y-6">
         {[...cats, { id: "__none__", name: "Uncategorized", color: "#6b7280" }].map((c) => {
           const items = c.id === "__none__" ? noCat : (byCat[c.id] ?? []);
