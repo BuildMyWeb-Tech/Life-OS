@@ -67,7 +67,13 @@ function RoutinePage() {
     });
   };
 
-  const toggle = (id: string) =>
+  const { data: habits = [] } = useHabits();
+  const { data: todayLogs = [] } = useHabitLogs(today, today);
+  const habitToggle = useToggleHabit();
+  const logsSet = useMemo(() => logIndex(todayLogs), [todayLogs]);
+
+  const toggle = (id: string) => {
+    const item = state.items.find((i) => i.id === id);
     setState((s) => ({
       ...s,
       completion: {
@@ -75,6 +81,15 @@ function RoutinePage() {
         [today]: { ...(s.completion[today] ?? {}), [id]: !s.completion[today]?.[id] },
       },
     }));
+    // mirror to matching habit (positive or negative) for today
+    if (item) {
+      const matched = findHabitByTitle(habits, item.title);
+      if (matched) {
+        const currentlyDone = isDone(logsSet, matched.id, today);
+        habitToggle.mutate({ habit_id: matched.id, log_date: today, done: !currentlyDone });
+      }
+    }
+  };
 
   const add = () => {
     if (!adding.trim()) return;
