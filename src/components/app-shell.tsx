@@ -3,8 +3,6 @@ import {
   LayoutDashboard,
   ListChecks,
   Flame,
-  Droplets,
-  StickyNote,
   LogOut,
   Sparkles,
   Menu,
@@ -26,8 +24,6 @@ const nav = [
   { to: "/habits", label: "Habits", icon: Flame },
   { to: "/categories", label: "Categories", icon: Tags },
   { to: "/negative-habits", label: "Avoid List", icon: Ban },
-  { to: "/health", label: "Water & Sleep", icon: Droplets },
-  { to: "/notes", label: "Notes", icon: StickyNote },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -89,12 +85,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
         {SidebarContent}
       </aside>
 
-      {/* Mobile drawer */}
       <AnimatePresence>
         {open && (
           <>

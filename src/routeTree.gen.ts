@@ -13,9 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRoutineRouteImport } from './routes/_authenticated/routine'
-import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
 import { Route as AuthenticatedNegativeHabitsRouteImport } from './routes/_authenticated/negative-habits'
-import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated/health'
 import { Route as AuthenticatedHabitsRouteImport } from './routes/_authenticated/habits'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
@@ -40,22 +38,12 @@ const AuthenticatedRoutineRoute = AuthenticatedRoutineRouteImport.update({
   path: '/routine',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedNotesRoute = AuthenticatedNotesRouteImport.update({
-  id: '/notes',
-  path: '/notes',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedNegativeHabitsRoute =
   AuthenticatedNegativeHabitsRouteImport.update({
     id: '/negative-habits',
     path: '/negative-habits',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedHealthRoute = AuthenticatedHealthRouteImport.update({
-  id: '/health',
-  path: '/health',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedHabitsRoute = AuthenticatedHabitsRouteImport.update({
   id: '/habits',
   path: '/habits',
@@ -84,9 +72,7 @@ export interface FileRoutesByFullPath {
   '/categories': typeof AuthenticatedCategoriesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
-  '/health': typeof AuthenticatedHealthRoute
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
-  '/notes': typeof AuthenticatedNotesRoute
   '/routine': typeof AuthenticatedRoutineRoute
 }
 export interface FileRoutesByTo {
@@ -96,9 +82,7 @@ export interface FileRoutesByTo {
   '/categories': typeof AuthenticatedCategoriesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
-  '/health': typeof AuthenticatedHealthRoute
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
-  '/notes': typeof AuthenticatedNotesRoute
   '/routine': typeof AuthenticatedRoutineRoute
 }
 export interface FileRoutesById {
@@ -110,9 +94,7 @@ export interface FileRoutesById {
   '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/habits': typeof AuthenticatedHabitsRoute
-  '/_authenticated/health': typeof AuthenticatedHealthRoute
   '/_authenticated/negative-habits': typeof AuthenticatedNegativeHabitsRoute
-  '/_authenticated/notes': typeof AuthenticatedNotesRoute
   '/_authenticated/routine': typeof AuthenticatedRoutineRoute
 }
 export interface FileRouteTypes {
@@ -124,9 +106,7 @@ export interface FileRouteTypes {
     | '/categories'
     | '/dashboard'
     | '/habits'
-    | '/health'
     | '/negative-habits'
-    | '/notes'
     | '/routine'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -136,9 +116,7 @@ export interface FileRouteTypes {
     | '/categories'
     | '/dashboard'
     | '/habits'
-    | '/health'
     | '/negative-habits'
-    | '/notes'
     | '/routine'
   id:
     | '__root__'
@@ -149,9 +127,7 @@ export interface FileRouteTypes {
     | '/_authenticated/categories'
     | '/_authenticated/dashboard'
     | '/_authenticated/habits'
-    | '/_authenticated/health'
     | '/_authenticated/negative-habits'
-    | '/_authenticated/notes'
     | '/_authenticated/routine'
   fileRoutesById: FileRoutesById
 }
@@ -191,25 +167,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRoutineRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/notes': {
-      id: '/_authenticated/notes'
-      path: '/notes'
-      fullPath: '/notes'
-      preLoaderRoute: typeof AuthenticatedNotesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/negative-habits': {
       id: '/_authenticated/negative-habits'
       path: '/negative-habits'
       fullPath: '/negative-habits'
       preLoaderRoute: typeof AuthenticatedNegativeHabitsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/health': {
-      id: '/_authenticated/health'
-      path: '/health'
-      fullPath: '/health'
-      preLoaderRoute: typeof AuthenticatedHealthRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/habits': {
@@ -248,9 +210,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHabitsRoute: typeof AuthenticatedHabitsRoute
-  AuthenticatedHealthRoute: typeof AuthenticatedHealthRoute
   AuthenticatedNegativeHabitsRoute: typeof AuthenticatedNegativeHabitsRoute
-  AuthenticatedNotesRoute: typeof AuthenticatedNotesRoute
   AuthenticatedRoutineRoute: typeof AuthenticatedRoutineRoute
 }
 
@@ -259,9 +219,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHabitsRoute: AuthenticatedHabitsRoute,
-  AuthenticatedHealthRoute: AuthenticatedHealthRoute,
   AuthenticatedNegativeHabitsRoute: AuthenticatedNegativeHabitsRoute,
-  AuthenticatedNotesRoute: AuthenticatedNotesRoute,
   AuthenticatedRoutineRoute: AuthenticatedRoutineRoute,
 }
 
