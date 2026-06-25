@@ -151,6 +151,74 @@ export type Database = {
           },
         ]
       }
+      lifeos_routine_items: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          sort_order: number
+          time: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          sort_order?: number
+          time?: string | null
+          title: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          sort_order?: number
+          time?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      lifeos_routine_logs: {
+        Row: {
+          created_at: string
+          done: boolean
+          id: string
+          item_id: string
+          log_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          item_id: string
+          log_date: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          item_id?: string
+          log_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifeos_routine_logs_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_routine_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
