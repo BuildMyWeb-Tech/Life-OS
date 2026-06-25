@@ -3,20 +3,22 @@ import { motion } from "framer-motion";
 import {
   Activity,
   Flame,
-  Droplets,
-  Moon,
   ListChecks,
   TrendingUp,
   Trophy,
   Quote,
 } from "lucide-react";
 import { useMemo } from "react";
-import { useLocal, todayKey, daysAgo } from "@/lib/storage";
+import { todayKey, daysAgo } from "@/lib/storage";
 import { PageHeader, StatCard } from "@/components/ui-bits";
 import { Progress } from "@/components/ui/progress";
-import type { RoutineState } from "@/features/routine-types";
-import { DEFAULT_ROUTINE } from "@/features/routine-types";
 import { useHabits, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
+import {
+  useRoutineItems,
+  useRoutineLogs,
+  routineLogIndex,
+  isRoutineDone,
+} from "@/features/routine-db";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   ssr: false,
@@ -39,45 +41,50 @@ function greeting() {
 }
 
 function Dashboard() {
-  const [routine] = useLocal<RoutineState>("lifeos:routine", DEFAULT_ROUTINE);
   const today = todayKey();
+  const from30 = daysAgo(29);
+
   const { data: allHabits = [] } = useHabits();
   const positiveHabits = allHabits.filter((h) => h.kind === "positive");
   const { data: todayLogs = [] } = useHabitLogs(today, today);
   const todaySet = useMemo(() => logIndex(todayLogs), [todayLogs]);
-  const [water] = useLocal<Record<string, number>>("lifeos:water", {});
-  const [sleep] = useLocal<Record<string, { sleep: string; wake: string; hours: number }>>("lifeos:sleep", {});
 
-  const doneToday = routine.items.filter((i) => routine.completion[today]?.[i.id]).length;
-  const totalToday = routine.items.length;
+  const { data: routineItems = [] } = useRoutineItems();
+  const { data: routineLogs = [] } = useRoutineLogs(from30, today);
+  const routineSet = useMemo(() => routineLogIndex(routineLogs), [routineLogs]);
+
+  const doneToday = routineItems.filter((i) => isRoutineDone(routineSet, i.id, today)).length;
+  const totalToday = routineItems.length;
   const dailyPct = totalToday ? Math.round((doneToday / totalToday) * 100) : 0;
 
   const habitsDone = positiveHabits.filter((h) => isDone(todaySet, h.id, today)).length;
 
   const { weeklyPct, monthlyPct } = useMemo(() => {
-    const week = Array.from({ length: 7 }, (_, i) => daysAgo(i));
-    const month = Array.from({ length: 30 }, (_, i) => daysAgo(i));
-    const calc = (days: string[]) => {
-      if (!routine.items.length) return 0;
-      let done = 0, total = 0;
+    const calc = (n: number) => {
+      if (!routineItems.length) return 0;
+      const days = Array.from({ length: n }, (_, i) => daysAgo(i));
+      let done = 0;
+      let total = 0;
       days.forEach((d) => {
-        routine.items.forEach((it) => {
+        routineItems.forEach((it) => {
           total++;
-          if (routine.completion[d]?.[it.id]) done++;
+          if (isRoutineDone(routineSet, it.id, d)) done++;
         });
       });
       return total ? Math.round((done / total) * 100) : 0;
     };
-    return { weeklyPct: calc(week), monthlyPct: calc(month) };
-  }, [routine]);
+    return { weeklyPct: calc(7), monthlyPct: calc(30) };
+  }, [routineItems, routineSet]);
 
   const { current, longest } = useMemo(() => {
-    let cur = 0, lon = 0, run = 0;
-    for (let i = 0; i < 365; i++) {
+    let cur = 0;
+    let lon = 0;
+    let run = 0;
+    const threshold = Math.max(1, Math.floor(routineItems.length * 0.6));
+    for (let i = 0; i < 30; i++) {
       const d = daysAgo(i);
-      const day = routine.completion[d] ?? {};
-      const c = routine.items.filter((it) => day[it.id]).length;
-      if (c >= Math.max(1, Math.floor(routine.items.length * 0.6))) {
+      const c = routineItems.filter((it) => isRoutineDone(routineSet, it.id, d)).length;
+      if (c >= threshold) {
         run++;
         if (i === 0 || cur === i) cur = run;
         lon = Math.max(lon, run);
@@ -87,13 +94,10 @@ function Dashboard() {
       }
     }
     return { current: cur, longest: lon };
-  }, [routine]);
+  }, [routineItems, routineSet]);
 
-  const waterToday = water[today] ?? 0;
-  const sleepToday = sleep[today]?.hours ?? sleep[daysAgo(1)]?.hours ?? 0;
   const quote = QUOTES[new Date().getDate() % QUOTES.length];
-
-  const pending = routine.items.filter((i) => !routine.completion[today]?.[i.id]);
+  const pending = routineItems.filter((i) => !isRoutineDone(routineSet, i.id, today));
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -132,39 +136,15 @@ function Dashboard() {
         />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div className="glass rounded-2xl p-6 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Progress Rings</h2>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="space-y-5">
-            <ProgressRow label="Today" value={dailyPct} />
-            <ProgressRow label="This Week" value={weeklyPct} />
-            <ProgressRow label="This Month" value={monthlyPct} />
-          </div>
+      <div className="mt-6 glass rounded-2xl p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Progress Rings</h2>
+          <TrendingUp className="h-4 w-4 text-muted-foreground" />
         </div>
-
-        <div className="glass rounded-2xl p-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Health</h2>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2"><Droplets className="h-4 w-4 text-accent" /> Water</span>
-                <span className="text-muted-foreground">{waterToday}ml / 3000ml</span>
-              </div>
-              <Progress value={Math.min(100, (waterToday / 3000) * 100)} />
-            </div>
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2"><Moon className="h-4 w-4 text-primary" /> Sleep</span>
-                <span className="text-muted-foreground">{sleepToday.toFixed(1)}h / 8h</span>
-              </div>
-              <Progress value={Math.min(100, (sleepToday / 8) * 100)} />
-            </div>
-          </div>
+        <div className="space-y-5">
+          <ProgressRow label="Today" value={dailyPct} />
+          <ProgressRow label="This Week" value={weeklyPct} />
+          <ProgressRow label="This Month" value={monthlyPct} />
         </div>
       </div>
 

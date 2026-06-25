@@ -24,8 +24,7 @@ import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useLocal, todayKey } from "@/lib/storage";
-import { DEFAULT_ROUTINE, type RoutineItem, type RoutineState } from "@/features/routine-types";
+import { todayKey } from "@/lib/storage";
 import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
@@ -36,6 +35,19 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  useRoutineItems,
+  useRoutineLogs,
+  useCreateRoutineItem,
+  useUpdateRoutineItem,
+  useDeleteRoutineItem,
+  useReorderRoutineItems,
+  useToggleRoutine,
+  useEnsureDefaultRoutine,
+  routineLogIndex,
+  isRoutineDone,
+  type RoutineItem,
+} from "@/features/routine-db";
 import { useHabits, useToggleHabit, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
 import { findHabitByTitle } from "@/lib/cross-sync";
 
@@ -44,13 +56,26 @@ export const Route = createFileRoute("/_authenticated/routine")({
   component: RoutinePage,
 });
 
-const newId = () => Math.random().toString(36).slice(2, 10);
-
 function RoutinePage() {
-  const [state, setState] = useLocal<RoutineState>("lifeos:routine", DEFAULT_ROUTINE);
+  const today = todayKey();
+  const { data: items = [], isFetched } = useRoutineItems();
+  const { data: logs = [] } = useRoutineLogs(today, today);
+  const create = useCreateRoutineItem();
+  const update = useUpdateRoutineItem();
+  const del = useDeleteRoutineItem();
+  const reorder = useReorderRoutineItems();
+  const toggleRoutine = useToggleRoutine();
+
+  useEnsureDefaultRoutine(items, isFetched);
+
+  const { data: habits = [] } = useHabits();
+  const { data: habitLogs = [] } = useHabitLogs(today, today);
+  const habitToggle = useToggleHabit();
+  const habitSet = useMemo(() => logIndex(habitLogs), [habitLogs]);
+  const doneSet = useMemo(() => routineLogIndex(logs), [logs]);
+
   const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<RoutineItem | null>(null);
-  const today = todayKey();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -60,79 +85,63 @@ function RoutinePage() {
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
-    setState((s) => {
-      const oldIdx = s.items.findIndex((i) => i.id === active.id);
-      const newIdx = s.items.findIndex((i) => i.id === over.id);
-      return { ...s, items: arrayMove(s.items, oldIdx, newIdx) };
-    });
+    const oldIdx = items.findIndex((i) => i.id === active.id);
+    const newIdx = items.findIndex((i) => i.id === over.id);
+    if (oldIdx < 0 || newIdx < 0) return;
+    const next = arrayMove(items, oldIdx, newIdx).map((it, i) => ({ id: it.id, sort_order: i }));
+    reorder.mutate(next);
   };
 
-  const { data: habits = [] } = useHabits();
-  const { data: todayLogs = [] } = useHabitLogs(today, today);
-  const habitToggle = useToggleHabit();
-  const logsSet = useMemo(() => logIndex(todayLogs), [todayLogs]);
-
-  const toggle = (id: string) => {
-    const item = state.items.find((i) => i.id === id);
-    setState((s) => ({
-      ...s,
-      completion: {
-        ...s.completion,
-        [today]: { ...(s.completion[today] ?? {}), [id]: !s.completion[today]?.[id] },
-      },
-    }));
-    // mirror to matching habit (positive or negative) for today
-    if (item) {
-      const matched = findHabitByTitle(habits, item.title);
-      if (matched) {
-        const currentlyDone = isDone(logsSet, matched.id, today);
-        habitToggle.mutate({ habit_id: matched.id, log_date: today, done: !currentlyDone });
+  const toggle = (item: RoutineItem) => {
+    const done = isRoutineDone(doneSet, item.id, today);
+    toggleRoutine.mutate({ item_id: item.id, log_date: today, done: !done });
+    // mirror to matching habit
+    const matched = findHabitByTitle(habits, item.title);
+    if (matched) {
+      const currentlyDone = isDone(habitSet, matched.id, today);
+      if (currentlyDone === done) {
+        habitToggle.mutate({ habit_id: matched.id, log_date: today, done: !done });
       }
     }
   };
 
   const add = () => {
     if (!adding.trim()) return;
-    setState((s) => ({ ...s, items: [...s.items, { id: newId(), title: adding.trim() }] }));
+    create.mutate(
+      { title: adding.trim(), sort_order: items.length },
+      { onSuccess: () => toast.success("Activity added") },
+    );
     setAdding("");
-    toast.success("Activity added");
-  };
-
-  const remove = (id: string) => {
-    setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== id) }));
-    toast("Activity deleted");
   };
 
   const duplicate = (it: RoutineItem) => {
-    setState((s) => {
-      const idx = s.items.findIndex((i) => i.id === it.id);
-      const copy = { ...it, id: newId(), title: it.title + " (copy)" };
-      const items = [...s.items];
-      items.splice(idx + 1, 0, copy);
-      return { ...s, items };
+    create.mutate({
+      title: it.title + " (copy)",
+      time: it.time,
+      notes: it.notes,
+      sort_order: items.length,
     });
   };
 
   const saveEdit = (item: RoutineItem) => {
-    setState((s) => ({ ...s, items: s.items.map((i) => (i.id === item.id ? item : i)) }));
+    update.mutate(
+      { id: item.id, title: item.title, time: item.time, notes: item.notes },
+      { onSuccess: () => toast.success("Updated") },
+    );
     setEditing(null);
-    toast.success("Updated");
   };
 
-  const done = state.items.filter((i) => state.completion[today]?.[i.id]).length;
-  const pct = state.items.length ? Math.round((done / state.items.length) * 100) : 0;
+  const done = items.filter((i) => isRoutineDone(doneSet, i.id, today)).length;
+  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <PageHeader
-        title="Daily Routine"
-        subtitle="Drag to reorder. Check as you go."
-      />
+      <PageHeader title="Daily Routine" subtitle="Drag to reorder. Check as you go." />
 
       <div className="glass mb-6 rounded-2xl p-5">
         <div className="mb-2 flex items-center justify-between text-sm">
           <span className="font-medium">Today's progress</span>
-          <span className="text-muted-foreground">{done} / {state.items.length} · {pct}%</span>
+          <span className="text-muted-foreground">{done} / {items.length} · {pct}%</span>
         </div>
         <Progress value={pct} />
       </div>
@@ -149,16 +158,16 @@ function RoutinePage() {
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={state.items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
           <ul className="space-y-2">
-            {state.items.map((item) => (
+            {items.map((item) => (
               <SortableRow
                 key={item.id}
                 item={item}
-                checked={!!state.completion[today]?.[item.id]}
-                onToggle={() => toggle(item.id)}
+                checked={isRoutineDone(doneSet, item.id, today)}
+                onToggle={() => toggle(item)}
                 onEdit={() => setEditing(item)}
-                onDelete={() => remove(item.id)}
+                onDelete={() => del.mutate(item.id)}
                 onDuplicate={() => duplicate(item)}
               />
             ))}
@@ -245,11 +254,11 @@ function EditDialog({
             </div>
             <div>
               <Label>Time (optional)</Label>
-              <Input type="time" value={draft.time ?? ""} onChange={(e) => setDraft({ ...draft, time: e.target.value })} />
+              <Input type="time" value={draft.time ?? ""} onChange={(e) => setDraft({ ...draft, time: e.target.value || null })} />
             </div>
             <div>
               <Label>Notes</Label>
-              <Textarea value={draft.notes ?? ""} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={3} />
+              <Textarea value={draft.notes ?? ""} onChange={(e) => setDraft({ ...draft, notes: e.target.value || null })} rows={3} />
             </div>
           </div>
         )}
