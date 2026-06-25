@@ -159,7 +159,7 @@ function EditForm({ category, onClose, onSave }: { category: Category; onClose: 
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={() => onSave({ name: name.trim(), color })} disabled={!name.trim()}>Save</Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </>
   );
 }
+
