@@ -121,21 +121,21 @@ function EditDialog({
   onClose: () => void;
   onSave: (patch: { name: string; color: string }) => void;
 }) {
-  const [name, setName] = useState(category?.name ?? "");
-  const [color, setColor] = useState(category?.color ?? PRESETS[0]);
-  if (category && (name === "" || color === "")) {
-    // first open: hydrate
-  }
-  // sync when opening a different category
-  if (category && category.name !== name && (document.activeElement as HTMLElement)?.tagName !== "INPUT") {
-    setName(category.name);
-    setColor(category.color);
-  }
-
   return (
     <Dialog open={!!category} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="glass">
         <DialogHeader><DialogTitle>Edit Category</DialogTitle></DialogHeader>
+        {category && <EditForm key={category.id} category={category} onClose={onClose} onSave={onSave} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditForm({ category, onClose, onSave }: { category: Category; onClose: () => void; onSave: (p: { name: string; color: string }) => void }) {
+  const [name, setName] = useState(category.name);
+  const [color, setColor] = useState(category.color);
+  return (
+    <>
         <div className="space-y-4">
           <div>
             <Label>Name</Label>
