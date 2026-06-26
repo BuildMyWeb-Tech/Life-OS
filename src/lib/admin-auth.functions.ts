@@ -59,7 +59,7 @@ export const ensureAdminAccount = createServerFn({ method: "POST" })
     });
     if (listError) throw listError;
 
-    const sessionPassword = `LifeOS-${crypto.randomUUID()}-${crypto.randomUUID()}`;
+    const sessionPassword = `LifeOS-${crypto.randomUUID().replaceAll("-", "")}!9`;
     let adminUser = users.users.find((user) => user.email?.toLowerCase() === ADMIN_EMAIL);
     if (!adminUser) {
       const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
