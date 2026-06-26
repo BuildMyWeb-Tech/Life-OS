@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const ADMIN_EMAIL = "lifeos-admin@mylife-monitor.local";
+const INTERNAL_ADMIN_PASSWORD = "LifeOS-Admin-Persist-2026!9vK#rT";
 const LEGACY_SENTINEL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 const inputSchema = z.object({
@@ -63,7 +64,7 @@ export const ensureAdminAccount = createServerFn({ method: "POST" })
     if (!adminUser) {
       const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
         email: ADMIN_EMAIL,
-        password: expectedPass(),
+        password: INTERNAL_ADMIN_PASSWORD,
         email_confirm: true,
         user_metadata: { username: expectedUser(), app: "lifeos" },
       });
@@ -71,7 +72,7 @@ export const ensureAdminAccount = createServerFn({ method: "POST" })
       adminUser = created.user;
     } else {
       const { data: updated, error } = await supabaseAdmin.auth.admin.updateUserById(adminUser.id, {
-        password: expectedPass(),
+        password: INTERNAL_ADMIN_PASSWORD,
         email_confirm: true,
         user_metadata: { username: expectedUser(), app: "lifeos" },
       });
@@ -125,5 +126,5 @@ export const ensureAdminAccount = createServerFn({ method: "POST" })
       }
     }
 
-    return { ok: true as const, email: ADMIN_EMAIL };
+    return { ok: true as const, email: ADMIN_EMAIL, password: INTERNAL_ADMIN_PASSWORD };
   });
