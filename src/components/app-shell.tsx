@@ -31,9 +31,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate({ to: "/auth" });
+  const handleLogout = async () => {
+    await logout();
+    navigate({ to: "/auth", replace: true });
   };
 
   const SidebarContent = (
