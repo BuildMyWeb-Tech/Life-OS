@@ -1,6 +1,6 @@
 import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { ensureSupabaseSession } from "@/lib/auth";
+import { clearLocalAuth, ensureSupabaseSession } from "@/lib/auth";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -9,7 +9,11 @@ export const Route = createFileRoute("/_authenticated")({
     if (localStorage.getItem("lifeos:auth") !== "1") {
       throw redirect({ to: "/auth" });
     }
-    await ensureSupabaseSession();
+    const hasSession = await ensureSupabaseSession();
+    if (!hasSession) {
+      clearLocalAuth();
+      throw redirect({ to: "/auth" });
+    }
   },
   component: () => (
     <AppShell>

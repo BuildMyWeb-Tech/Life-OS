@@ -32,6 +32,10 @@ function AuthPage() {
       } else {
         setErr("Invalid Username or Password");
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not sign in";
+      setErr(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
