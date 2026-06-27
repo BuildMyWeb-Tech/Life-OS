@@ -95,6 +95,16 @@ function AuthPage() {
           <Button disabled={loading} className="w-full" size="lg">
             {loading ? "Signing in…" : "Enter LifeOS"}
           </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={loading}
+            onClick={quickLogin}
+            className="w-full"
+            size="lg"
+          >
+            ⚡ Quick Enter LifeOS
+          </Button>
         </form>
       </motion.div>
     </div>
