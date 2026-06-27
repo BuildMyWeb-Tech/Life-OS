@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  ChevronsRight,
   GitBranch,
 } from "lucide-react";
 import { PageHeader, StatCard } from "@/components/ui-bits";
