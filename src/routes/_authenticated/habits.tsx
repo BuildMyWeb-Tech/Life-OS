@@ -193,23 +193,53 @@ function HabitsPage() {
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
-      <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <div>
-          Showing <span className="text-foreground">{days[0]}</span> →{" "}
-          <span className="text-foreground">{days[days.length - 1]}</span>
+          Showing <span className="text-foreground">{monthFrom}</span> →{" "}
+          <span className="text-foreground">{monthTo}</span>
         </div>
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setOffset((o) => o + PAGE)} title="Older 10 days">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              const m = month - 1;
+              if (m < 0) { setMonth(11); setYear((y) => y - 1); } else setMonth(m);
+            }}
+            title="Previous month"
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button size="sm" variant="ghost" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE))} title="Newer 10 days">
+          <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+            <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {["January","February","March","April","May","June","July","August","September","October","November","December"].map((mn, i) => (
+                <SelectItem key={mn} value={String(i)}>{mn}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+            <SelectTrigger className="h-8 w-[90px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 7 }, (_, i) => now.getFullYear() - 3 + i).map((y) => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              const m = month + 1;
+              if (m > 11) { setMonth(0); setYear((y) => y + 1); } else setMonth(m);
+            }}
+            title="Next month"
+          >
             <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" disabled={offset === 0} onClick={() => setOffset(0)} title="Jump to today">
-            <ChevronsRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
+
 
       <div className="space-y-6">
         {[...cats, { id: "__none__", name: "Uncategorized", color: "#6b7280" }].map((c) => {
