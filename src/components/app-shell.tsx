@@ -10,6 +10,7 @@ import {
   Calendar as CalendarIcon,
   Tags,
   Ban,
+  BarChart3,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
+  { to: "/report", label: "Report", icon: BarChart3 },
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
   { to: "/habits", label: "Habits", icon: Flame },
   { to: "/categories", label: "Categories", icon: Tags },
