@@ -13,6 +13,9 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+const QUICK_USER = (import.meta.env.VITE_ADMIN_USERNAME as string) || "admin";
+const QUICK_PASS = (import.meta.env.VITE_ADMIN_PASSWORD as string) || "admin@2026";
+
 function AuthPage() {
   const nav = useNavigate();
   const [u, setU] = useState("");
@@ -20,12 +23,11 @@ function AuthPage() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doLogin = async (username: string, password: string) => {
     setLoading(true);
     setErr("");
     try {
-      const ok = await login(u, p);
+      const ok = await login(username, password);
       if (ok) {
         toast.success("Welcome back, Sai 👋");
         nav({ to: "/dashboard" });
@@ -39,6 +41,17 @@ function AuthPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void doLogin(u, p);
+  };
+
+  const quickLogin = () => {
+    setU(QUICK_USER);
+    setP(QUICK_PASS);
+    void doLogin(QUICK_USER, QUICK_PASS);
   };
 
   return (
