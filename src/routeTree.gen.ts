@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRoutineRouteImport } from './routes/_authenticated/routine'
+import { Route as AuthenticatedReportRouteImport } from './routes/_authenticated/report'
 import { Route as AuthenticatedNegativeHabitsRouteImport } from './routes/_authenticated/negative-habits'
 import { Route as AuthenticatedHabitsRouteImport } from './routes/_authenticated/habits'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -36,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedRoutineRoute = AuthenticatedRoutineRouteImport.update({
   id: '/routine',
   path: '/routine',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedReportRoute = AuthenticatedReportRouteImport.update({
+  id: '/report',
+  path: '/report',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedNegativeHabitsRoute =
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
+  '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
 }
 export interface FileRoutesByTo {
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
+  '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
 }
 export interface FileRoutesById {
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/habits': typeof AuthenticatedHabitsRoute
   '/_authenticated/negative-habits': typeof AuthenticatedNegativeHabitsRoute
+  '/_authenticated/report': typeof AuthenticatedReportRoute
   '/_authenticated/routine': typeof AuthenticatedRoutineRoute
 }
 export interface FileRouteTypes {
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/habits'
     | '/negative-habits'
+    | '/report'
     | '/routine'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/habits'
     | '/negative-habits'
+    | '/report'
     | '/routine'
   id:
     | '__root__'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/habits'
     | '/_authenticated/negative-habits'
+    | '/_authenticated/report'
     | '/_authenticated/routine'
   fileRoutesById: FileRoutesById
 }
@@ -165,6 +177,13 @@ declare module '@tanstack/react-router' {
       path: '/routine'
       fullPath: '/routine'
       preLoaderRoute: typeof AuthenticatedRoutineRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/report': {
+      id: '/_authenticated/report'
+      path: '/report'
+      fullPath: '/report'
+      preLoaderRoute: typeof AuthenticatedReportRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/negative-habits': {
@@ -211,6 +230,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHabitsRoute: typeof AuthenticatedHabitsRoute
   AuthenticatedNegativeHabitsRoute: typeof AuthenticatedNegativeHabitsRoute
+  AuthenticatedReportRoute: typeof AuthenticatedReportRoute
   AuthenticatedRoutineRoute: typeof AuthenticatedRoutineRoute
 }
 
@@ -220,6 +240,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHabitsRoute: AuthenticatedHabitsRoute,
   AuthenticatedNegativeHabitsRoute: AuthenticatedNegativeHabitsRoute,
+  AuthenticatedReportRoute: AuthenticatedReportRoute,
   AuthenticatedRoutineRoute: AuthenticatedRoutineRoute,
 }
 
@@ -234,13 +255,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
