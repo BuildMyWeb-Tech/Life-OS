@@ -59,18 +59,26 @@ export const Route = createFileRoute("/_authenticated/habits")({
 
 function HabitsPage() {
   const today = todayKey();
-  const PAGE = 10;
-  const [offset, setOffset] = useState(0);
-  const days = useMemo(
-    () => Array.from({ length: PAGE }, (_, i) => daysAgo(offset + PAGE - 1 - i)),
-    [offset],
-  );
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth()); // 0-11
+  const days = useMemo(() => {
+    const last = new Date(year, month + 1, 0).getDate();
+    return Array.from({ length: last }, (_, i) => {
+      const d = new Date(year, month, i + 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    });
+  }, [year, month]);
+  const monthFrom = days[0];
+  const monthTo = days[days.length - 1];
   const statFrom = daysAgo(89);
   const statTo = today;
+  const logFrom = monthFrom < statFrom ? monthFrom : statFrom;
+  const logTo = monthTo > statTo ? monthTo : statTo;
 
   const { data: cats = [] } = useCategories();
   const { data: habits = [], isLoading } = useHabits();
-  const { data: logs = [] } = useHabitLogs(statFrom, statTo);
+  const { data: logs = [] } = useHabitLogs(logFrom, logTo);
   const toggle = useToggleHabit();
   const create = useCreateHabit();
   const update = useUpdateHabit();
