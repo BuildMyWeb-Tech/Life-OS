@@ -212,9 +212,9 @@ function SortableRow({
       <button {...attributes} {...listeners} className="cursor-grab p-1 text-muted-foreground hover:text-foreground" aria-label="drag">
         <GripVertical className="h-4 w-4" />
       </button>
-      <Checkbox checked={checked} onCheckedChange={onToggle} className="h-5 w-5" />
+      <Checkbox checked={checked} onCheckedChange={onToggle} className="h-5 w-5 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className={"truncate text-sm font-medium " + (checked ? "text-muted-foreground line-through" : "")}>
+        <p className={"break-words text-sm font-medium " + (checked ? "text-muted-foreground line-through" : "")}>
           {item.title}
         </p>
         <div className="mt-0.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
@@ -222,7 +222,7 @@ function SortableRow({
           {item.notes && (<span className="flex items-center gap-1"><StickyNote className="h-3 w-3" />{item.notes}</span>)}
         </div>
       </div>
-      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
         <Button size="icon" variant="ghost" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
         <Button size="icon" variant="ghost" onClick={onDuplicate}><Copy className="h-4 w-4" /></Button>
         <Button size="icon" variant="ghost" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
