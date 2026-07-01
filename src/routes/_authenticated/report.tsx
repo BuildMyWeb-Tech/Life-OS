@@ -264,6 +264,68 @@ function ReportPage() {
           ))}
         </div>
       </div>
+
+      {/* Per-habit analysis */}
+      {perHabit.length > 0 && (
+        <div className="glass mt-6 rounded-2xl p-4">
+          <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">
+            Per-Habit Analysis · {monthLabel}
+          </p>
+
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            <TierCard label="Best" name={best?.h.name ?? "—"} value={`${best?.rate ?? 0}%`} emoji={best?.h.emoji ?? "🏆"} tone="success" />
+            <TierCard label="Medium" name={median?.h.name ?? "—"} value={`${median?.rate ?? 0}%`} emoji={median?.h.emoji ?? "⚖️"} tone="warning" />
+            <TierCard label="Worst" name={worst?.h.name ?? "—"} value={`${worst?.rate ?? 0}%`} emoji={worst?.h.emoji ?? "⚠️"} tone="danger" />
+          </div>
+
+          <div className="space-y-2">
+            {perHabit.map((r) => {
+              const tone =
+                r.rate >= 80 ? "bg-[color:var(--success)]"
+                : r.rate >= 50 ? "bg-[color:var(--warning)]"
+                : "bg-red-400";
+              return (
+                <div key={r.h.id} className="rounded-xl bg-secondary/30 p-3">
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2 text-sm">
+                      <span>{r.h.emoji}</span>
+                      <span className="truncate font-medium">{r.h.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
+                      <span>{r.done}/{r.totalDays}</span>
+                      <span className="text-[color:var(--warning)]">🔥 {r.current}d</span>
+                      <span>max {r.longest}d</span>
+                      <span className="w-10 text-right font-semibold text-foreground">{r.rate}%</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/60">
+                    <div className={`h-full ${tone}`} style={{ width: `${r.rate}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {improve.length > 0 && (
+            <div className="mt-4 rounded-xl border border-border/60 bg-secondary/20 p-3">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Focus for Next Month
+              </p>
+              <p className="text-sm text-foreground/90">
+                Push these under-50% habits:{" "}
+                {improve.map((r, i) => (
+                  <span key={r.h.id}>
+                    <span className="font-medium">{r.h.emoji} {r.h.name}</span>
+                    <span className="text-muted-foreground"> ({r.rate}%)</span>
+                    {i < improve.length - 1 ? ", " : ""}
+                  </span>
+                ))}
+                . Try scheduling them at a fixed time and pairing with an existing routine.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }
