@@ -24,7 +24,7 @@ import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { todayKey } from "@/lib/storage";
+import { todayKey, prettyDate } from "@/lib/storage";
 import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
@@ -136,10 +136,10 @@ function RoutinePage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <PageHeader title="Daily Routine" subtitle="Drag to reorder. Check as you go." />
+      <PageHeader title="Daily Routine" subtitle={`${prettyDate(today)} · resets at 4:30 AM`} />
 
       <div className="glass mb-6 rounded-2xl p-5">
-        <div className="mb-2 flex items-center justify-between text-sm">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-medium">Today's progress</span>
           <span className="text-muted-foreground">{done} / {items.length} · {pct}%</span>
         </div>

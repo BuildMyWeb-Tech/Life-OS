@@ -84,6 +84,38 @@ function ReportPage() {
     return w;
   }, [daily]);
 
+  // Per-habit stats for the selected month
+  const perHabit = useMemo(() => {
+    const rows = positives.map((h) => {
+      let done = 0;
+      let longest = 0;
+      let run = 0;
+      days.forEach(({ key }) => {
+        if (isDone(set, h.id, key)) {
+          done++;
+          run++;
+          if (run > longest) longest = run;
+        } else {
+          run = 0;
+        }
+      });
+      // current streak = trailing run from most recent day
+      let current = 0;
+      for (let i = days.length - 1; i >= 0; i--) {
+        if (isDone(set, h.id, days[i].key)) current++;
+        else break;
+      }
+      const totalDays = days.length;
+      return { h, done, totalDays, rate: totalDays ? Math.round((done / totalDays) * 100) : 0, longest, current };
+    });
+    return rows.sort((a, b) => b.rate - a.rate);
+  }, [positives, days, set]);
+
+  const best = perHabit[0];
+  const worst = perHabit[perHabit.length - 1];
+  const median = perHabit[Math.floor(perHabit.length / 2)];
+  const improve = perHabit.filter((r) => r.rate < 50).slice(0, 3);
+
   const monthLabel = new Date(year, month, 1).toLocaleString("default", {
     month: "long",
     year: "numeric",
@@ -232,6 +264,68 @@ function ReportPage() {
           ))}
         </div>
       </div>
+
+      {/* Per-habit analysis */}
+      {perHabit.length > 0 && (
+        <div className="glass mt-6 rounded-2xl p-4">
+          <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">
+            Per-Habit Analysis · {monthLabel}
+          </p>
+
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            <TierCard label="Best" name={best?.h.name ?? "—"} value={`${best?.rate ?? 0}%`} emoji={best?.h.emoji ?? "🏆"} tone="success" />
+            <TierCard label="Medium" name={median?.h.name ?? "—"} value={`${median?.rate ?? 0}%`} emoji={median?.h.emoji ?? "⚖️"} tone="warning" />
+            <TierCard label="Worst" name={worst?.h.name ?? "—"} value={`${worst?.rate ?? 0}%`} emoji={worst?.h.emoji ?? "⚠️"} tone="danger" />
+          </div>
+
+          <div className="space-y-2">
+            {perHabit.map((r) => {
+              const tone =
+                r.rate >= 80 ? "bg-[color:var(--success)]"
+                : r.rate >= 50 ? "bg-[color:var(--warning)]"
+                : "bg-red-400";
+              return (
+                <div key={r.h.id} className="rounded-xl bg-secondary/30 p-3">
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2 text-sm">
+                      <span>{r.h.emoji}</span>
+                      <span className="truncate font-medium">{r.h.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
+                      <span>{r.done}/{r.totalDays}</span>
+                      <span className="text-[color:var(--warning)]">🔥 {r.current}d</span>
+                      <span>max {r.longest}d</span>
+                      <span className="w-10 text-right font-semibold text-foreground">{r.rate}%</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/60">
+                    <div className={`h-full ${tone}`} style={{ width: `${r.rate}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {improve.length > 0 && (
+            <div className="mt-4 rounded-xl border border-border/60 bg-secondary/20 p-3">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Focus for Next Month
+              </p>
+              <p className="text-sm text-foreground/90">
+                Push these under-50% habits:{" "}
+                {improve.map((r, i) => (
+                  <span key={r.h.id}>
+                    <span className="font-medium">{r.h.emoji} {r.h.name}</span>
+                    <span className="text-muted-foreground"> ({r.rate}%)</span>
+                    {i < improve.length - 1 ? ", " : ""}
+                  </span>
+                ))}
+                . Try scheduling them at a fixed time and pairing with an existing routine.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -242,6 +336,37 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
       <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function TierCard({
+  label,
+  name,
+  value,
+  emoji,
+  tone,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  emoji: string;
+  tone: "success" | "warning" | "danger";
+}) {
+  const color =
+    tone === "success"
+      ? "text-[color:var(--success)]"
+      : tone === "warning"
+        ? "text-[color:var(--warning)]"
+        : "text-red-400";
+  return (
+    <div className="rounded-xl bg-secondary/40 p-3">
+      <p className={`text-[10px] font-semibold uppercase tracking-wider ${color}`}>{label}</p>
+      <p className="mt-1 flex items-center gap-1.5 truncate text-sm font-medium">
+        <span>{emoji}</span>
+        <span className="truncate">{name}</span>
+      </p>
+      <p className={`mt-0.5 text-lg font-semibold tabular-nums ${color}`}>{value}</p>
     </div>
   );
 }
