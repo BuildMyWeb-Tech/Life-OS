@@ -340,6 +340,37 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
+function TierCard({
+  label,
+  name,
+  value,
+  emoji,
+  tone,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  emoji: string;
+  tone: "success" | "warning" | "danger";
+}) {
+  const color =
+    tone === "success"
+      ? "text-[color:var(--success)]"
+      : tone === "warning"
+        ? "text-[color:var(--warning)]"
+        : "text-red-400";
+  return (
+    <div className="rounded-xl bg-secondary/40 p-3">
+      <p className={`text-[10px] font-semibold uppercase tracking-wider ${color}`}>{label}</p>
+      <p className="mt-1 flex items-center gap-1.5 truncate text-sm font-medium">
+        <span>{emoji}</span>
+        <span className="truncate">{name}</span>
+      </p>
+      <p className={`mt-0.5 text-lg font-semibold tabular-nums ${color}`}>{value}</p>
+    </div>
+  );
+}
+
 function Donut({ value, color }: { value: number; color: string }) {
   const size = 90;
   const stroke = 9;
