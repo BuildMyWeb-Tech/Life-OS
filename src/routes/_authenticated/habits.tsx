@@ -387,11 +387,11 @@ function HabitRow({
       {days.map((d) => {
         const done = isDone(set, h.id, d);
         return (
-          <td key={d} className="px-1 py-2 text-center">
+          <td key={d} className="px-0 py-2 text-center">
             <button
               onClick={() => onToggle(d)}
               className={cn(
-                "h-7 w-7 rounded-full border border-border transition",
+                "mx-auto block h-6 w-6 rounded-full border border-border transition lg:h-5 lg:w-5",
                 done
                   ? "border-[color:var(--success)]/70 bg-[color:var(--success)]/70 shadow-[0_0_12px_rgba(34,197,94,0.35)]"
                   : "bg-secondary/40 hover:bg-secondary",
