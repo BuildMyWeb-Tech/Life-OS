@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   Activity,
+  Ban,
   Flame,
   ListChecks,
   TrendingUp,
@@ -46,8 +47,9 @@ function Dashboard() {
 
   const { data: allHabits = [] } = useHabits();
   const positiveHabits = allHabits.filter((h) => h.kind === "positive");
-  const { data: todayLogs = [] } = useHabitLogs(today, today);
-  const todaySet = useMemo(() => logIndex(todayLogs), [todayLogs]);
+  const negativeHabits = allHabits.filter((h) => h.kind === "negative");
+  const { data: logs30 = [] } = useHabitLogs(from30, today);
+  const habitSet = useMemo(() => logIndex(logs30), [logs30]);
 
   const { data: routineItems = [] } = useRoutineItems();
   const { data: routineLogs = [] } = useRoutineLogs(from30, today);
@@ -57,33 +59,49 @@ function Dashboard() {
   const totalToday = routineItems.length;
   const dailyPct = totalToday ? Math.round((doneToday / totalToday) * 100) : 0;
 
-  const habitsDone = positiveHabits.filter((h) => isDone(todaySet, h.id, today)).length;
+  const habitsDone = positiveHabits.filter((h) => isDone(habitSet, h.id, today)).length;
+  const avoidedToday = negativeHabits.filter((h) => isDone(habitSet, h.id, today)).length;
 
+  // Combined progress: positive habits + avoid list (negatives)
   const { weeklyPct, monthlyPct } = useMemo(() => {
     const calc = (n: number) => {
-      if (!routineItems.length) return 0;
+      const totalHabits = positiveHabits.length + negativeHabits.length;
+      if (!totalHabits) return 0;
       const days = Array.from({ length: n }, (_, i) => daysAgo(i));
       let done = 0;
       let total = 0;
       days.forEach((d) => {
-        routineItems.forEach((it) => {
+        positiveHabits.forEach((h) => {
           total++;
-          if (isRoutineDone(routineSet, it.id, d)) done++;
+          if (isDone(habitSet, h.id, d)) done++;
+        });
+        negativeHabits.forEach((h) => {
+          total++;
+          if (isDone(habitSet, h.id, d)) done++;
         });
       });
       return total ? Math.round((done / total) * 100) : 0;
     };
     return { weeklyPct: calc(7), monthlyPct: calc(30) };
-  }, [routineItems, routineSet]);
+  }, [positiveHabits, negativeHabits, habitSet]);
+
+  const todayCombinedPct = useMemo(() => {
+    const total = positiveHabits.length + negativeHabits.length;
+    if (!total) return 0;
+    return Math.round(((habitsDone + avoidedToday) / total) * 100);
+  }, [positiveHabits.length, negativeHabits.length, habitsDone, avoidedToday]);
 
   const { current, longest } = useMemo(() => {
     let cur = 0;
     let lon = 0;
     let run = 0;
-    const threshold = Math.max(1, Math.floor(routineItems.length * 0.6));
+    const total = positiveHabits.length + negativeHabits.length;
+    const threshold = Math.max(1, Math.floor(total * 0.6));
     for (let i = 0; i < 30; i++) {
       const d = daysAgo(i);
-      const c = routineItems.filter((it) => isRoutineDone(routineSet, it.id, d)).length;
+      const c =
+        positiveHabits.filter((h) => isDone(habitSet, h.id, d)).length +
+        negativeHabits.filter((h) => isDone(habitSet, h.id, d)).length;
       if (c >= threshold) {
         run++;
         if (i === 0 || cur === i) cur = run;
@@ -94,19 +112,45 @@ function Dashboard() {
       }
     }
     return { current: cur, longest: lon };
-  }, [routineItems, routineSet]);
+  }, [positiveHabits, negativeHabits, habitSet]);
 
   const quote = QUOTES[new Date().getDate() % QUOTES.length];
-  const pending = routineItems.filter((i) => !isRoutineDone(routineSet, i.id, today));
+  const pendingRoutine = routineItems.filter((i) => !isRoutineDone(routineSet, i.id, today));
+  const pendingHabits = positiveHabits.length - habitsDone;
+  const pendingAvoid = negativeHabits.length - avoidedToday;
+
+  // Per-habit rate for advanced dashboard
+  const perHabit = useMemo(() => {
+    const rows = positiveHabits.map((h) => {
+      let done = 0;
+      let cur = 0;
+      let lon = 0;
+      let run = 0;
+      for (let i = 0; i < 30; i++) {
+        const d = daysAgo(i);
+        if (isDone(habitSet, h.id, d)) {
+          done++;
+          run++;
+          if (i === 0 || cur === i) cur = run;
+          lon = Math.max(lon, run);
+        } else {
+          if (i === 0) cur = 0;
+          run = 0;
+        }
+      }
+      return { h, done, total: 30, rate: Math.round((done / 30) * 100), current: cur, longest: lon };
+    });
+    return rows.sort((a, b) => b.rate - a.rate);
+  }, [positiveHabits, habitSet]);
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <PageHeader
-        title={`${greeting()}, Sai 👋`}
+        title={`${greeting()}, AK 👋`}
         subtitle="Here's your life dashboard for today."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label="Daily Completion"
           value={`${dailyPct}%`}
@@ -121,6 +165,13 @@ function Dashboard() {
           accent="accent"
         />
         <StatCard
+          label="Avoided Today"
+          value={`${avoidedToday}/${negativeHabits.length}`}
+          hint={pendingAvoid ? `${pendingAvoid} still to resist` : "All resisted ✨"}
+          icon={<Ban className="h-4 w-4" />}
+          accent="success"
+        />
+        <StatCard
           label="Current Streak"
           value={`${current}d`}
           hint={`Longest: ${longest}d`}
@@ -128,9 +179,9 @@ function Dashboard() {
           accent="warning"
         />
         <StatCard
-          label="Pending Tasks"
-          value={pending.length}
-          hint={pending.length ? "Let's finish strong" : "All clear ✨"}
+          label="Pending"
+          value={pendingRoutine.length}
+          hint={pendingHabits ? `${pendingHabits} habit${pendingHabits > 1 ? "s" : ""} left` : "All clear ✨"}
           icon={<Trophy className="h-4 w-4" />}
           accent="success"
         />
@@ -142,11 +193,53 @@ function Dashboard() {
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="space-y-5">
-          <ProgressRow label="Today" value={dailyPct} />
+          <ProgressRow label="Today (habits + avoid)" value={todayCombinedPct} />
           <ProgressRow label="This Week" value={weeklyPct} />
           <ProgressRow label="This Month" value={monthlyPct} />
         </div>
       </div>
+
+      {/* Advanced per-habit dashboard */}
+      {perHabit.length > 0 && (
+        <div className="mt-6 glass rounded-2xl p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Habit Follow-Rate · Last 30 days</h2>
+            <span className="text-xs text-muted-foreground">Rate · Streak · Longest</span>
+          </div>
+          <div className="space-y-3">
+            {perHabit.map(({ h, done, total, rate, current, longest }) => {
+              const tier =
+                rate >= 80 ? "best" : rate >= 50 ? "medium" : "worst";
+              const tierColor =
+                tier === "best"
+                  ? "text-[color:var(--success)]"
+                  : tier === "medium"
+                    ? "text-[color:var(--warning)]"
+                    : "text-red-400";
+              return (
+                <div key={h.id} className="rounded-xl bg-secondary/30 p-3">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span>{h.emoji}</span>
+                      <span className="truncate text-sm font-medium">{h.name}</span>
+                      <span className={`shrink-0 text-[10px] font-semibold uppercase ${tierColor}`}>
+                        {tier}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3 text-xs tabular-nums">
+                      <span className="text-muted-foreground">{done}/{total}</span>
+                      <span className="text-[color:var(--warning)]">🔥 {current}d</span>
+                      <span className="text-muted-foreground">max {longest}d</span>
+                      <span className="w-10 text-right font-semibold">{rate}%</span>
+                    </div>
+                  </div>
+                  <Progress value={rate} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 glass relative overflow-hidden rounded-2xl p-6">
         <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[var(--gradient-glow)]" />
