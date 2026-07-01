@@ -84,6 +84,38 @@ function ReportPage() {
     return w;
   }, [daily]);
 
+  // Per-habit stats for the selected month
+  const perHabit = useMemo(() => {
+    const rows = positives.map((h) => {
+      let done = 0;
+      let longest = 0;
+      let run = 0;
+      days.forEach(({ key }) => {
+        if (isDone(set, h.id, key)) {
+          done++;
+          run++;
+          if (run > longest) longest = run;
+        } else {
+          run = 0;
+        }
+      });
+      // current streak = trailing run from most recent day
+      let current = 0;
+      for (let i = days.length - 1; i >= 0; i--) {
+        if (isDone(set, h.id, days[i].key)) current++;
+        else break;
+      }
+      const totalDays = days.length;
+      return { h, done, totalDays, rate: totalDays ? Math.round((done / totalDays) * 100) : 0, longest, current };
+    });
+    return rows.sort((a, b) => b.rate - a.rate);
+  }, [positives, days, set]);
+
+  const best = perHabit[0];
+  const worst = perHabit[perHabit.length - 1];
+  const median = perHabit[Math.floor(perHabit.length / 2)];
+  const improve = perHabit.filter((r) => r.rate < 50).slice(0, 3);
+
   const monthLabel = new Date(year, month, 1).toLocaleString("default", {
     month: "long",
     year: "numeric",
