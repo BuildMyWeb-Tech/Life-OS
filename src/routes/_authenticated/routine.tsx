@@ -24,7 +24,7 @@ import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { todayKey } from "@/lib/storage";
+import { todayKey, prettyDate } from "@/lib/storage";
 import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
