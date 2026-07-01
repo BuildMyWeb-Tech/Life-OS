@@ -251,15 +251,19 @@ function HabitsPage() {
                 <span className="h-3 w-3 rounded-full" style={{ background: c.color }} />
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{c.name}</h2>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto lg:overflow-visible">
+                <table className="w-full text-sm lg:table-fixed">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
-                      <th className="px-2 py-2">Habit</th>
-                      {days.map((d) => (<th key={d} className="px-1 py-2 text-center">{d.slice(8)}</th>))}
-                      <th className="px-2 py-2 text-right">Streak</th>
-                      <th className="px-2 py-2 text-right">Rate</th>
-                      <th />
+                      <th className="px-2 py-2 lg:w-[22%]">Habit</th>
+                      {days.map((d) => (
+                        <th key={d} className="px-0 py-2 text-center text-[10px]">
+                          {d.slice(8)}
+                        </th>
+                      ))}
+                      <th className="px-2 py-2 text-right lg:w-[70px]">Streak</th>
+                      <th className="px-2 py-2 text-right lg:w-[55px]">Rate</th>
+                      <th className="lg:w-[70px]" />
                     </tr>
                   </thead>
                   <tbody>
