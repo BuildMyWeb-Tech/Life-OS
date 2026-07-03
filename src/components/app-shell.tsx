@@ -11,6 +11,8 @@ import {
   Tags,
   Ban,
   BarChart3,
+  Briefcase,
+
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,6 +26,7 @@ const nav = [
   { to: "/report", label: "Report", icon: BarChart3 },
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
   { to: "/habits", label: "Habits", icon: Flame },
+  { to: "/work", label: "Work & Projects", icon: Briefcase },
   { to: "/categories", label: "Categories", icon: Tags },
   { to: "/negative-habits", label: "Avoid List", icon: Ban },
 ] as const;
