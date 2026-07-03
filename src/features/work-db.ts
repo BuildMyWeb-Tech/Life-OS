@@ -1,0 +1,113 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+export type WorkNode = {
+  id: string;
+  user_id: string;
+  parent_id: string | null;
+  node_type: string;
+  title: string;
+  notes: string | null;
+  sort_order: number;
+  done: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+const QK = ["lifeos", "work_nodes"] as const;
+
+export function useWorkNodes() {
+  return useQuery({
+    queryKey: QK,
+    queryFn: async (): Promise<WorkNode[]> => {
+      const { data, error } = await supabase
+        .from("lifeos_work_nodes")
+        .select("*")
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as WorkNode[];
+    },
+  });
+}
+
+export function useCreateWorkNode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      parent_id: string | null;
+      title: string;
+      notes?: string | null;
+      node_type?: string;
+      sort_order?: number;
+    }) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const user_id = userData.user?.id;
+      if (!user_id) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("lifeos_work_nodes")
+        .insert({
+          user_id,
+          parent_id: input.parent_id,
+          title: input.title,
+          notes: input.notes ?? null,
+          node_type: input.node_type ?? "work",
+          sort_order: input.sort_order ?? 0,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as WorkNode;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateWorkNode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      title?: string;
+      notes?: string | null;
+      done?: boolean;
+      node_type?: string;
+    }) => {
+      const { id, ...patch } = input;
+      const { error } = await supabase.from("lifeos_work_nodes").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteWorkNode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("lifeos_work_nodes").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useReorderWorkNodes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rows: { id: string; sort_order: number; parent_id: string | null }[]) => {
+      for (const r of rows) {
+        const { error } = await supabase
+          .from("lifeos_work_nodes")
+          .update({ sort_order: r.sort_order, parent_id: r.parent_id })
+          .eq("id", r.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
