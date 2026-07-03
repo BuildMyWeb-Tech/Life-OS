@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedWorkRouteImport } from './routes/_authenticated/work'
 import { Route as AuthenticatedRoutineRouteImport } from './routes/_authenticated/routine'
 import { Route as AuthenticatedReportRouteImport } from './routes/_authenticated/report'
 import { Route as AuthenticatedNegativeHabitsRouteImport } from './routes/_authenticated/negative-habits'
@@ -33,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedWorkRoute = AuthenticatedWorkRouteImport.update({
+  id: '/work',
+  path: '/work',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedRoutineRoute = AuthenticatedRoutineRouteImport.update({
   id: '/routine',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
+  '/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
+  '/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/_authenticated/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/_authenticated/report': typeof AuthenticatedReportRoute
   '/_authenticated/routine': typeof AuthenticatedRoutineRoute
+  '/_authenticated/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/negative-habits'
     | '/report'
     | '/routine'
+    | '/work'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/negative-habits'
     | '/report'
     | '/routine'
+    | '/work'
   id:
     | '__root__'
     | '/'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/_authenticated/negative-habits'
     | '/_authenticated/report'
     | '/_authenticated/routine'
+    | '/_authenticated/work'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +183,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/work': {
+      id: '/_authenticated/work'
+      path: '/work'
+      fullPath: '/work'
+      preLoaderRoute: typeof AuthenticatedWorkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/routine': {
       id: '/_authenticated/routine'
@@ -232,6 +251,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNegativeHabitsRoute: typeof AuthenticatedNegativeHabitsRoute
   AuthenticatedReportRoute: typeof AuthenticatedReportRoute
   AuthenticatedRoutineRoute: typeof AuthenticatedRoutineRoute
+  AuthenticatedWorkRoute: typeof AuthenticatedWorkRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -242,6 +262,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNegativeHabitsRoute: AuthenticatedNegativeHabitsRoute,
   AuthenticatedReportRoute: AuthenticatedReportRoute,
   AuthenticatedRoutineRoute: AuthenticatedRoutineRoute,
+  AuthenticatedWorkRoute: AuthenticatedWorkRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

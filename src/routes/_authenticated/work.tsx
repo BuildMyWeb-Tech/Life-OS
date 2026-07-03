@@ -142,7 +142,7 @@ function WorkPage() {
     <div className="space-y-6">
       <PageHeader
         title="Work & Projects"
-        description="Companies → categories → works → tasks. Drag to reorder within a group."
+        subtitle="Companies → categories → works → tasks. Drag to reorder within a group."
       />
 
       <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row">
