@@ -83,7 +83,22 @@ function WorkPage() {
   const [editing, setEditing] = useState<WorkNode | null>(null);
   const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(null);
   const [addTitle, setAddTitle] = useState("");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const COLLAPSE_KEY = "lifeos:work:collapsed";
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const persistCollapsed = (s: Set<string>) => {
+    try {
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...s]));
+    } catch {}
+  };
+  const today = logicalTodayKey();
 
   const byParent = useMemo(() => {
     const m = new Map<string | null, WorkNode[]>();
@@ -103,6 +118,7 @@ function WorkPage() {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
       else n.add(id);
+      persistCollapsed(n);
       return n;
     });
   };
