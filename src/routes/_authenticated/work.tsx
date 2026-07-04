@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { logicalTodayKey } from "@/lib/storage";
 import {
   useWorkNodes,
   useCreateWorkNode,
@@ -82,7 +83,22 @@ function WorkPage() {
   const [editing, setEditing] = useState<WorkNode | null>(null);
   const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(null);
   const [addTitle, setAddTitle] = useState("");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const COLLAPSE_KEY = "lifeos:work:collapsed";
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const persistCollapsed = (s: Set<string>) => {
+    try {
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...s]));
+    } catch {}
+  };
+  const today = logicalTodayKey();
 
   const byParent = useMemo(() => {
     const m = new Map<string | null, WorkNode[]>();
@@ -102,6 +118,7 @@ function WorkPage() {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
       else n.add(id);
+      persistCollapsed(n);
       return n;
     });
   };
@@ -178,7 +195,15 @@ function WorkPage() {
           onDelete={(n) => {
             if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
           }}
-          onToggleDone={(n) => update.mutate({ id: n.id, done: !n.done })}
+          onToggleDone={(n) => {
+            const isDoneToday = n.done && n.done_on === today;
+            update.mutate({
+              id: n.id,
+              done: !isDoneToday,
+              done_on: isDoneToday ? null : today,
+            });
+          }}
+          today={today}
           onReorderSiblings={(parent_id, ids) => {
             const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
             reorder.mutate(rows);
@@ -279,6 +304,7 @@ function TreeLevel({
   onDelete,
   onToggleDone,
   onReorderSiblings,
+  today,
 }: {
   parentId: string | null;
   depth: number;
@@ -290,6 +316,7 @@ function TreeLevel({
   onDelete: (n: WorkNode) => void;
   onToggleDone: (n: WorkNode) => void;
   onReorderSiblings: (parent_id: string | null, ids: string[]) => void;
+  today: string;
 }) {
   const items = byParent.get(parentId) ?? [];
   const sensors = useSensors(
@@ -325,6 +352,7 @@ function TreeLevel({
               onEdit={() => onEdit(n)}
               onDelete={() => onDelete(n)}
               onToggleDone={() => onToggleDone(n)}
+              effectiveDone={n.done && n.done_on === today}
             >
               {!collapsed.has(n.id) && (
                 <TreeLevel
@@ -338,6 +366,7 @@ function TreeLevel({
                   onDelete={onDelete}
                   onToggleDone={onToggleDone}
                   onReorderSiblings={onReorderSiblings}
+                  today={today}
                 />
               )}
             </NodeRow>
@@ -358,6 +387,7 @@ function NodeRow({
   onEdit,
   onDelete,
   onToggleDone,
+  effectiveDone,
   children,
 }: {
   node: WorkNode;
@@ -369,6 +399,7 @@ function NodeRow({
   onEdit: () => void;
   onDelete: () => void;
   onToggleDone: () => void;
+  effectiveDone: boolean;
   children?: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -413,7 +444,7 @@ function NodeRow({
           />
         </button>
 
-        <Checkbox checked={node.done} onCheckedChange={onToggleDone} className="mt-1" />
+        <Checkbox checked={effectiveDone} onCheckedChange={onToggleDone} className="mt-1" />
 
         <Icon className={cn("mt-1 h-4 w-4 shrink-0", meta.color)} />
 
@@ -423,7 +454,7 @@ function NodeRow({
               className={cn(
                 "break-words text-sm font-medium leading-snug",
                 depth === 0 && "text-base font-semibold",
-                node.done && "text-muted-foreground line-through",
+                effectiveDone && "text-muted-foreground line-through",
               )}
             >
               {node.title}

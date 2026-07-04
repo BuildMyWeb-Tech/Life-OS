@@ -1,0 +1,1 @@
+ALTER TABLE public.lifeos_work_nodes ADD COLUMN IF NOT EXISTS done_on date;
