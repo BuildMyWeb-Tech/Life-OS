@@ -387,6 +387,7 @@ function NodeRow({
   onEdit,
   onDelete,
   onToggleDone,
+  effectiveDone,
   children,
 }: {
   node: WorkNode;
@@ -398,6 +399,7 @@ function NodeRow({
   onEdit: () => void;
   onDelete: () => void;
   onToggleDone: () => void;
+  effectiveDone: boolean;
   children?: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -442,7 +444,7 @@ function NodeRow({
           />
         </button>
 
-        <Checkbox checked={node.done} onCheckedChange={onToggleDone} className="mt-1" />
+        <Checkbox checked={effectiveDone} onCheckedChange={onToggleDone} className="mt-1" />
 
         <Icon className={cn("mt-1 h-4 w-4 shrink-0", meta.color)} />
 
@@ -452,7 +454,7 @@ function NodeRow({
               className={cn(
                 "break-words text-sm font-medium leading-snug",
                 depth === 0 && "text-base font-semibold",
-                node.done && "text-muted-foreground line-through",
+                effectiveDone && "text-muted-foreground line-through",
               )}
             >
               {node.title}
