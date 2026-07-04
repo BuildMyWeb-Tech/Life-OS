@@ -195,7 +195,15 @@ function WorkPage() {
           onDelete={(n) => {
             if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
           }}
-          onToggleDone={(n) => update.mutate({ id: n.id, done: !n.done })}
+          onToggleDone={(n) => {
+            const isDoneToday = n.done && n.done_on === today;
+            update.mutate({
+              id: n.id,
+              done: !isDoneToday,
+              done_on: isDoneToday ? null : today,
+            });
+          }}
+          today={today}
           onReorderSiblings={(parent_id, ids) => {
             const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
             reorder.mutate(rows);
