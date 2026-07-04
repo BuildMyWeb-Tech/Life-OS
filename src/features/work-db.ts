@@ -11,6 +11,7 @@ export type WorkNode = {
   notes: string | null;
   sort_order: number;
   done: boolean;
+  done_on: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -72,6 +73,7 @@ export function useUpdateWorkNode() {
       title?: string;
       notes?: string | null;
       done?: boolean;
+      done_on?: string | null;
       node_type?: string;
     }) => {
       const { id, ...patch } = input;
