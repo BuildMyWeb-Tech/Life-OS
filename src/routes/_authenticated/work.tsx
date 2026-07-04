@@ -304,6 +304,7 @@ function TreeLevel({
   onDelete,
   onToggleDone,
   onReorderSiblings,
+  today,
 }: {
   parentId: string | null;
   depth: number;
@@ -315,6 +316,7 @@ function TreeLevel({
   onDelete: (n: WorkNode) => void;
   onToggleDone: (n: WorkNode) => void;
   onReorderSiblings: (parent_id: string | null, ids: string[]) => void;
+  today: string;
 }) {
   const items = byParent.get(parentId) ?? [];
   const sensors = useSensors(
@@ -350,6 +352,7 @@ function TreeLevel({
               onEdit={() => onEdit(n)}
               onDelete={() => onDelete(n)}
               onToggleDone={() => onToggleDone(n)}
+              effectiveDone={n.done && n.done_on === today}
             >
               {!collapsed.has(n.id) && (
                 <TreeLevel
@@ -363,6 +366,7 @@ function TreeLevel({
                   onDelete={onDelete}
                   onToggleDone={onToggleDone}
                   onReorderSiblings={onReorderSiblings}
+                  today={today}
                 />
               )}
             </NodeRow>
