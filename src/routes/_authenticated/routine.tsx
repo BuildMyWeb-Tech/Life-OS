@@ -279,7 +279,7 @@ function SortableRow({
       <button {...attributes} {...listeners} className="cursor-grab p-1 text-muted-foreground hover:text-foreground" aria-label="drag">
         <GripVertical className="h-4 w-4" />
       </button>
-      <Checkbox checked={checked} onCheckedChange={onToggle} className="h-5 w-5 shrink-0" />
+      <Checkbox checked={checked} disabled={disabled} onCheckedChange={onToggle} className="h-5 w-5 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className={"break-words text-sm font-medium " + (checked ? "text-muted-foreground line-through" : "")}>
           {item.title}
