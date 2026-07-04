@@ -223,6 +223,7 @@ export type Database = {
         Row: {
           created_at: string
           done: boolean
+          done_on: string | null
           id: string
           node_type: string
           notes: string | null
@@ -235,6 +236,7 @@ export type Database = {
         Insert: {
           created_at?: string
           done?: boolean
+          done_on?: string | null
           id?: string
           node_type?: string
           notes?: string | null
@@ -247,6 +249,7 @@ export type Database = {
         Update: {
           created_at?: string
           done?: boolean
+          done_on?: string | null
           id?: string
           node_type?: string
           notes?: string | null
