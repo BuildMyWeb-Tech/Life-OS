@@ -18,12 +18,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { GripVertical, Plus, Pencil, Trash2, Copy, Clock, StickyNote } from "lucide-react";
+import { GripVertical, Plus, Pencil, Trash2, Copy, Clock, StickyNote, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { todayKey, prettyDate } from "@/lib/storage";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -56,10 +57,23 @@ export const Route = createFileRoute("/_authenticated/routine")({
   component: RoutinePage,
 });
 
+function shiftDate(key: string, delta: number) {
+  const [y, m, d] = key.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 function RoutinePage() {
   const today = todayKey();
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [filter, setFilter] = useState<"all" | "completed" | "pending">("all");
+
   const { data: items = [], isFetched } = useRoutineItems();
-  const { data: logs = [] } = useRoutineLogs(today, today);
+  const { data: logs = [] } = useRoutineLogs(selectedDate, selectedDate);
   const create = useCreateRoutineItem();
   const update = useUpdateRoutineItem();
   const del = useDeleteRoutineItem();
@@ -69,7 +83,7 @@ function RoutinePage() {
   useEnsureDefaultRoutine(items, isFetched);
 
   const { data: habits = [] } = useHabits();
-  const { data: habitLogs = [] } = useHabitLogs(today, today);
+  const { data: habitLogs = [] } = useHabitLogs(selectedDate, selectedDate);
   const habitToggle = useToggleHabit();
   const habitSet = useMemo(() => logIndex(habitLogs), [habitLogs]);
   const doneSet = useMemo(() => routineLogIndex(logs), [logs]);
@@ -93,14 +107,14 @@ function RoutinePage() {
   };
 
   const toggle = (item: RoutineItem) => {
-    const done = isRoutineDone(doneSet, item.id, today);
-    toggleRoutine.mutate({ item_id: item.id, log_date: today, done: !done });
+    const done = isRoutineDone(doneSet, item.id, selectedDate);
+    toggleRoutine.mutate({ item_id: item.id, log_date: selectedDate, done: !done });
     // mirror to matching habit
     const matched = findHabitByTitle(habits, item.title);
     if (matched) {
-      const currentlyDone = isDone(habitSet, matched.id, today);
+      const currentlyDone = isDone(habitSet, matched.id, selectedDate);
       if (currentlyDone === done) {
-        habitToggle.mutate({ habit_id: matched.id, log_date: today, done: !done });
+        habitToggle.mutate({ habit_id: matched.id, log_date: selectedDate, done: !done });
       }
     }
   };
@@ -131,46 +145,97 @@ function RoutinePage() {
     setEditing(null);
   };
 
-  const done = items.filter((i) => isRoutineDone(doneSet, i.id, today)).length;
+  const done = items.filter((i) => isRoutineDone(doneSet, i.id, selectedDate)).length;
   const pct = items.length ? Math.round((done / items.length) * 100) : 0;
+  const isToday = selectedDate === today;
+  const isFuture = selectedDate > today;
+
+  const visibleItems = items.filter((i) => {
+    if (filter === "all") return true;
+    const isChecked = isRoutineDone(doneSet, i.id, selectedDate);
+    return filter === "completed" ? isChecked : !isChecked;
+  });
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <PageHeader title="Daily Routine" subtitle={`${prettyDate(today)} · resets at 4:30 AM`} />
+      <PageHeader title="Daily Routine" subtitle="Resets at 4:30 AM · use arrows to review past days" />
+
+      <div className="glass mb-4 flex items-center justify-between gap-2 rounded-2xl p-3">
+        <Button variant="ghost" size="icon" onClick={() => setSelectedDate((d) => shiftDate(d, -1))} aria-label="Previous day">
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex flex-col items-center text-center">
+          <span className="text-sm font-semibold">{prettyDate(selectedDate)}</span>
+          {!isToday && (
+            <button
+              onClick={() => setSelectedDate(today)}
+              className="text-xs text-primary hover:underline"
+            >
+              Jump to today
+            </button>
+          )}
+          {isToday && <span className="text-[10px] uppercase tracking-wider text-primary">Today</span>}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSelectedDate((d) => shiftDate(d, 1))}
+          disabled={isToday}
+          aria-label="Next day"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
 
       <div className="glass mb-6 rounded-2xl p-5">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="font-medium">Today's progress</span>
+          <span className="font-medium">Progress {isToday ? "today" : "on this day"}</span>
           <span className="text-muted-foreground">{done} / {items.length} · {pct}%</span>
         </div>
         <Progress value={pct} />
       </div>
 
-      <div className="glass mb-4 flex gap-2 rounded-2xl p-3">
-        <Input
-          value={adding}
-          onChange={(e) => setAdding(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && add()}
-          placeholder="Add a new activity (e.g. Read 20 pages)"
-          className="bg-transparent"
-        />
-        <Button onClick={add} className="gap-2"><Plus className="h-4 w-4" /> Add</Button>
-      </div>
+      <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)} className="mb-4">
+        <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+          <TabsTrigger value="all">All ({items.length})</TabsTrigger>
+          <TabsTrigger value="completed">Completed ({done})</TabsTrigger>
+          <TabsTrigger value="pending">Pending ({items.length - done})</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {isToday && (
+        <div className="glass mb-4 flex gap-2 rounded-2xl p-3">
+          <Input
+            value={adding}
+            onChange={(e) => setAdding(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+            placeholder="Add a new activity (e.g. Read 20 pages)"
+            className="bg-transparent"
+          />
+          <Button onClick={add} className="gap-2"><Plus className="h-4 w-4" /> Add</Button>
+        </div>
+      )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={visibleItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
           <ul className="space-y-2">
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <SortableRow
                 key={item.id}
                 item={item}
-                checked={isRoutineDone(doneSet, item.id, today)}
+                checked={isRoutineDone(doneSet, item.id, selectedDate)}
+                disabled={isFuture}
                 onToggle={() => toggle(item)}
                 onEdit={() => setEditing(item)}
                 onDelete={() => del.mutate(item.id)}
                 onDuplicate={() => duplicate(item)}
               />
             ))}
+            {visibleItems.length === 0 && (
+              <li className="glass rounded-xl p-6 text-center text-sm text-muted-foreground">
+                No {filter === "all" ? "activities" : filter} for this day.
+              </li>
+            )}
           </ul>
         </SortableContext>
       </DndContext>
@@ -183,6 +248,7 @@ function RoutinePage() {
 function SortableRow({
   item,
   checked,
+  disabled,
   onToggle,
   onEdit,
   onDelete,
@@ -190,6 +256,7 @@ function SortableRow({
 }: {
   item: RoutineItem;
   checked: boolean;
+  disabled?: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
