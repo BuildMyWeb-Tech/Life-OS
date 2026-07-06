@@ -175,61 +175,85 @@ function WorkPage() {
     );
   };
 
+  const toggleDone = (n: WorkNode) => {
+    const isDoneToday = n.done && n.done_on === today;
+    update.mutate({
+      id: n.id,
+      done: !isDoneToday,
+      done_on: isDoneToday ? null : today,
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Work & Projects"
-        subtitle="Companies → categories → works → tasks. Drag to reorder within a group."
-      />
-
-      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row">
-        <Input
-          value={newCompany}
-          onChange={(e) => setNewCompany(e.target.value)}
-          placeholder="Add company (e.g. KCT, BMW, Pivot Marketing)"
-          onKeyDown={(e) => e.key === "Enter" && addCompany()}
+      <div className="flex items-start justify-between gap-3">
+        <PageHeader
+          title={preview ? "Preview — Pending Work" : "Work & Projects"}
+          subtitle={
+            preview
+              ? "Only incomplete items. Tick to mark done. Parent completed hides its children."
+              : "Companies → categories → works → tasks. Drag to reorder within a group."
+          }
         />
-        <Button onClick={addCompany} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Company
-        </Button>
-      </div>
-
-      <div className="space-y-3">
-        {roots.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No companies yet. Add one above to get started.
-          </div>
+        {preview ? (
+          <Button variant="outline" className="gap-2" onClick={() => togglePreview(false)}>
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
+        ) : (
+          <Button variant="outline" className="gap-2" onClick={() => togglePreview(true)}>
+            <Eye className="h-4 w-4" /> Preview
+          </Button>
         )}
-
-        <TreeLevel
-          parentId={null}
-          depth={0}
-          byParent={byParent}
-          collapsed={collapsed}
-          onToggleCollapse={toggleCollapse}
-          onAddChild={(parent, depth) => {
-            setAddingUnder({ parent, depth });
-            setAddTitle("");
-          }}
-          onEdit={setEditing}
-          onDelete={(n) => {
-            if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
-          }}
-          onToggleDone={(n) => {
-            const isDoneToday = n.done && n.done_on === today;
-            update.mutate({
-              id: n.id,
-              done: !isDoneToday,
-              done_on: isDoneToday ? null : today,
-            });
-          }}
-          today={today}
-          onReorderSiblings={(parent_id, ids) => {
-            const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
-            reorder.mutate(rows);
-          }}
-        />
       </div>
+
+      {preview ? (
+        <PreviewList byParent={byParent} today={today} onToggleDone={toggleDone} />
+      ) : (
+        <>
+          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row">
+            <Input
+              value={newCompany}
+              onChange={(e) => setNewCompany(e.target.value)}
+              placeholder="Add company (e.g. KCT, BMW, Pivot Marketing)"
+              onKeyDown={(e) => e.key === "Enter" && addCompany()}
+            />
+            <Button onClick={addCompany} className="gap-2">
+              <Plus className="h-4 w-4" /> Add Company
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {roots.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                No companies yet. Add one above to get started.
+              </div>
+            )}
+
+            <TreeLevel
+              parentId={null}
+              depth={0}
+              byParent={byParent}
+              collapsed={collapsed}
+              onToggleCollapse={toggleCollapse}
+              onAddChild={(parent, depth) => {
+                setAddingUnder({ parent, depth });
+                setAddTitle("");
+              }}
+              onEdit={setEditing}
+              onDelete={(n) => {
+                if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
+              }}
+              onToggleDone={toggleDone}
+              today={today}
+              onReorderSiblings={(parent_id, ids) => {
+                const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
+                reorder.mutate(rows);
+              }}
+            />
+          </div>
+        </>
+      )}
+
 
       {/* Add child dialog */}
       <Dialog open={!!addingUnder} onOpenChange={(o) => !o && setAddingUnder(null)}>
