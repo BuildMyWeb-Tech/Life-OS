@@ -113,7 +113,7 @@ function TasksPage() {
       <PageHeader
         title="Tasks"
         subtitle="One-off things to get done. Add a title, optional date and time."
-        actions={
+        action={
           <Button onClick={openCreate} className="gap-2">
             <Plus className="h-4 w-4" /> New task
           </Button>
@@ -121,9 +121,9 @@ function TasksPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Total" value={tasks.length} icon={CheckSquare} />
-        <StatCard label="Pending" value={pending.length} icon={Clock} />
-        <StatCard label="Completed" value={done.length} icon={CheckSquare} />
+        <StatCard label="Total" value={tasks.length} icon={<CheckSquare className="h-4 w-4" />} />
+        <StatCard label="Pending" value={pending.length} icon={<Clock className="h-4 w-4" />} />
+        <StatCard label="Completed" value={done.length} icon={<CheckSquare className="h-4 w-4" />} />
       </div>
 
       <section className="space-y-3">
