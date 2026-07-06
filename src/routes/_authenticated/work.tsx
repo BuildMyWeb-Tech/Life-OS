@@ -29,7 +29,10 @@ import {
   ListChecks,
   CheckSquare,
   Check,
+  Eye,
+  ArrowLeft,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
@@ -100,6 +103,23 @@ function WorkPage() {
   };
   const today = logicalTodayKey();
 
+  const PREVIEW_KEY = "lifeos:work:preview";
+  const [preview, setPreview] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(PREVIEW_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const togglePreview = (v: boolean) => {
+    setPreview(v);
+    try {
+      localStorage.setItem(PREVIEW_KEY, v ? "1" : "0");
+    } catch {}
+  };
+
+
   const byParent = useMemo(() => {
     const m = new Map<string | null, WorkNode[]>();
     for (const n of nodes) {
@@ -155,61 +175,85 @@ function WorkPage() {
     );
   };
 
+  const toggleDone = (n: WorkNode) => {
+    const isDoneToday = n.done && n.done_on === today;
+    update.mutate({
+      id: n.id,
+      done: !isDoneToday,
+      done_on: isDoneToday ? null : today,
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Work & Projects"
-        subtitle="Companies → categories → works → tasks. Drag to reorder within a group."
-      />
-
-      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row">
-        <Input
-          value={newCompany}
-          onChange={(e) => setNewCompany(e.target.value)}
-          placeholder="Add company (e.g. KCT, BMW, Pivot Marketing)"
-          onKeyDown={(e) => e.key === "Enter" && addCompany()}
+      <div className="flex items-start justify-between gap-3">
+        <PageHeader
+          title={preview ? "Preview — Pending Work" : "Work & Projects"}
+          subtitle={
+            preview
+              ? "Only incomplete items. Tick to mark done. Parent completed hides its children."
+              : "Companies → categories → works → tasks. Drag to reorder within a group."
+          }
         />
-        <Button onClick={addCompany} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Company
-        </Button>
-      </div>
-
-      <div className="space-y-3">
-        {roots.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No companies yet. Add one above to get started.
-          </div>
+        {preview ? (
+          <Button variant="outline" className="gap-2" onClick={() => togglePreview(false)}>
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
+        ) : (
+          <Button variant="outline" className="gap-2" onClick={() => togglePreview(true)}>
+            <Eye className="h-4 w-4" /> Preview
+          </Button>
         )}
-
-        <TreeLevel
-          parentId={null}
-          depth={0}
-          byParent={byParent}
-          collapsed={collapsed}
-          onToggleCollapse={toggleCollapse}
-          onAddChild={(parent, depth) => {
-            setAddingUnder({ parent, depth });
-            setAddTitle("");
-          }}
-          onEdit={setEditing}
-          onDelete={(n) => {
-            if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
-          }}
-          onToggleDone={(n) => {
-            const isDoneToday = n.done && n.done_on === today;
-            update.mutate({
-              id: n.id,
-              done: !isDoneToday,
-              done_on: isDoneToday ? null : today,
-            });
-          }}
-          today={today}
-          onReorderSiblings={(parent_id, ids) => {
-            const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
-            reorder.mutate(rows);
-          }}
-        />
       </div>
+
+      {preview ? (
+        <PreviewList byParent={byParent} today={today} onToggleDone={toggleDone} />
+      ) : (
+        <>
+          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row">
+            <Input
+              value={newCompany}
+              onChange={(e) => setNewCompany(e.target.value)}
+              placeholder="Add company (e.g. KCT, BMW, Pivot Marketing)"
+              onKeyDown={(e) => e.key === "Enter" && addCompany()}
+            />
+            <Button onClick={addCompany} className="gap-2">
+              <Plus className="h-4 w-4" /> Add Company
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {roots.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                No companies yet. Add one above to get started.
+              </div>
+            )}
+
+            <TreeLevel
+              parentId={null}
+              depth={0}
+              byParent={byParent}
+              collapsed={collapsed}
+              onToggleCollapse={toggleCollapse}
+              onAddChild={(parent, depth) => {
+                setAddingUnder({ parent, depth });
+                setAddTitle("");
+              }}
+              onEdit={setEditing}
+              onDelete={(n) => {
+                if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
+              }}
+              onToggleDone={toggleDone}
+              today={today}
+              onReorderSiblings={(parent_id, ids) => {
+                const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
+                reorder.mutate(rows);
+              }}
+            />
+          </div>
+        </>
+      )}
+
 
       {/* Add child dialog */}
       <Dialog open={!!addingUnder} onOpenChange={(o) => !o && setAddingUnder(null)}>
@@ -497,3 +541,112 @@ function NodeRow({
 
 // Keep unused import happy in some setups
 void Check;
+
+type PreviewLine = { path: WorkNode[]; leaf: WorkNode };
+
+function buildPreviewLines(
+  byParent: Map<string | null, WorkNode[]>,
+  today: string,
+): PreviewLine[] {
+  const out: PreviewLine[] = [];
+  const walk = (parentId: string | null, trail: WorkNode[]) => {
+    const kids = byParent.get(parentId) ?? [];
+    for (const n of kids) {
+      const done = n.done && n.done_on === today;
+      if (done) continue; // skip completed subtree
+      const nextTrail = [...trail, n];
+      const grand = byParent.get(n.id) ?? [];
+      const incompleteChildren = grand.filter((c) => !(c.done && c.done_on === today));
+      if (incompleteChildren.length === 0) {
+        out.push({ path: nextTrail, leaf: n });
+      } else {
+        walk(n.id, nextTrail);
+      }
+    }
+  };
+  walk(null, []);
+  return out;
+}
+
+function PreviewList({
+  byParent,
+  today,
+  onToggleDone,
+}: {
+  byParent: Map<string | null, WorkNode[]>;
+  today: string;
+  onToggleDone: (n: WorkNode) => void;
+}) {
+  const lines = useMemo(() => buildPreviewLines(byParent, today), [byParent, today]);
+
+  if (lines.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        🎉 Nothing pending. All items completed.
+      </div>
+    );
+  }
+
+  // Group by company (root)
+  const groups = new Map<string, PreviewLine[]>();
+  for (const l of lines) {
+    const key = l.path[0].id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(l);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="text-xs text-muted-foreground">
+        {lines.length} pending {lines.length === 1 ? "item" : "items"}
+      </div>
+      {[...groups.entries()].map(([companyId, items]) => {
+        const company = items[0].path[0];
+        return (
+          <div key={companyId} className="rounded-2xl border border-border bg-card p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold">{company.title}</p>
+              <span className="text-xs text-muted-foreground">
+                · {items.length} pending
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {items.map(({ path, leaf }) => (
+                <label
+                  key={path.map((p) => p.id).join(">")}
+                  className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={false}
+                    onCheckedChange={() => onToggleDone(leaf)}
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1 leading-snug">
+                    {path.map((n, i) => (
+                      <span key={n.id}>
+                        {i > 0 && (
+                          <span className="mx-1.5 text-muted-foreground">›</span>
+                        )}
+                        <span
+                          className={cn(
+                            i === 0 && "font-medium text-primary",
+                            i === path.length - 1 && "font-medium text-foreground",
+                            i > 0 && i < path.length - 1 && "text-muted-foreground",
+                          )}
+                        >
+                          {n.title}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
