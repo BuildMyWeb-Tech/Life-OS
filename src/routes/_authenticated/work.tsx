@@ -541,3 +541,112 @@ function NodeRow({
 
 // Keep unused import happy in some setups
 void Check;
+
+type PreviewLine = { path: WorkNode[]; leaf: WorkNode };
+
+function buildPreviewLines(
+  byParent: Map<string | null, WorkNode[]>,
+  today: string,
+): PreviewLine[] {
+  const out: PreviewLine[] = [];
+  const walk = (parentId: string | null, trail: WorkNode[]) => {
+    const kids = byParent.get(parentId) ?? [];
+    for (const n of kids) {
+      const done = n.done && n.done_on === today;
+      if (done) continue; // skip completed subtree
+      const nextTrail = [...trail, n];
+      const grand = byParent.get(n.id) ?? [];
+      const incompleteChildren = grand.filter((c) => !(c.done && c.done_on === today));
+      if (incompleteChildren.length === 0) {
+        out.push({ path: nextTrail, leaf: n });
+      } else {
+        walk(n.id, nextTrail);
+      }
+    }
+  };
+  walk(null, []);
+  return out;
+}
+
+function PreviewList({
+  byParent,
+  today,
+  onToggleDone,
+}: {
+  byParent: Map<string | null, WorkNode[]>;
+  today: string;
+  onToggleDone: (n: WorkNode) => void;
+}) {
+  const lines = useMemo(() => buildPreviewLines(byParent, today), [byParent, today]);
+
+  if (lines.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        🎉 Nothing pending. All items completed.
+      </div>
+    );
+  }
+
+  // Group by company (root)
+  const groups = new Map<string, PreviewLine[]>();
+  for (const l of lines) {
+    const key = l.path[0].id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(l);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="text-xs text-muted-foreground">
+        {lines.length} pending {lines.length === 1 ? "item" : "items"}
+      </div>
+      {[...groups.entries()].map(([companyId, items]) => {
+        const company = items[0].path[0];
+        return (
+          <div key={companyId} className="rounded-2xl border border-border bg-card p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold">{company.title}</p>
+              <span className="text-xs text-muted-foreground">
+                · {items.length} pending
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {items.map(({ path, leaf }) => (
+                <label
+                  key={path.map((p) => p.id).join(">")}
+                  className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={false}
+                    onCheckedChange={() => onToggleDone(leaf)}
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1 leading-snug">
+                    {path.map((n, i) => (
+                      <span key={n.id}>
+                        {i > 0 && (
+                          <span className="mx-1.5 text-muted-foreground">›</span>
+                        )}
+                        <span
+                          className={cn(
+                            i === 0 && "font-medium text-primary",
+                            i === path.length - 1 && "font-medium text-foreground",
+                            i > 0 && i < path.length - 1 && "text-muted-foreground",
+                          )}
+                        >
+                          {n.title}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
