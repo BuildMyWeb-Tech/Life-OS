@@ -103,6 +103,23 @@ function WorkPage() {
   };
   const today = logicalTodayKey();
 
+  const PREVIEW_KEY = "lifeos:work:preview";
+  const [preview, setPreview] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(PREVIEW_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const togglePreview = (v: boolean) => {
+    setPreview(v);
+    try {
+      localStorage.setItem(PREVIEW_KEY, v ? "1" : "0");
+    } catch {}
+  };
+
+
   const byParent = useMemo(() => {
     const m = new Map<string | null, WorkNode[]>();
     for (const n of nodes) {
