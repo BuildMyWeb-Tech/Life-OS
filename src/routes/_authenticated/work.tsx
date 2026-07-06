@@ -29,7 +29,10 @@ import {
   ListChecks,
   CheckSquare,
   Check,
+  Eye,
+  ArrowLeft,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
