@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedWorkRouteImport } from './routes/_authenticated/work'
+import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedRoutineRouteImport } from './routes/_authenticated/routine'
 import { Route as AuthenticatedReportRouteImport } from './routes/_authenticated/report'
 import { Route as AuthenticatedNegativeHabitsRouteImport } from './routes/_authenticated/negative-habits'
@@ -38,6 +39,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedWorkRoute = AuthenticatedWorkRouteImport.update({
   id: '/work',
   path: '/work',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedRoutineRoute = AuthenticatedRoutineRouteImport.update({
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
+  '/tasks': typeof AuthenticatedTasksRoute
   '/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRoutesByTo {
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
+  '/tasks': typeof AuthenticatedTasksRoute
   '/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRoutesById {
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/_authenticated/negative-habits': typeof AuthenticatedNegativeHabitsRoute
   '/_authenticated/report': typeof AuthenticatedReportRoute
   '/_authenticated/routine': typeof AuthenticatedRoutineRoute
+  '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRouteTypes {
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/negative-habits'
     | '/report'
     | '/routine'
+    | '/tasks'
     | '/work'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/negative-habits'
     | '/report'
     | '/routine'
+    | '/tasks'
     | '/work'
   id:
     | '__root__'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/_authenticated/negative-habits'
     | '/_authenticated/report'
     | '/_authenticated/routine'
+    | '/_authenticated/tasks'
     | '/_authenticated/work'
   fileRoutesById: FileRoutesById
 }
@@ -189,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/work'
       fullPath: '/work'
       preLoaderRoute: typeof AuthenticatedWorkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tasks': {
+      id: '/_authenticated/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AuthenticatedTasksRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/routine': {
@@ -251,6 +270,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNegativeHabitsRoute: typeof AuthenticatedNegativeHabitsRoute
   AuthenticatedReportRoute: typeof AuthenticatedReportRoute
   AuthenticatedRoutineRoute: typeof AuthenticatedRoutineRoute
+  AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedWorkRoute: typeof AuthenticatedWorkRoute
 }
 
@@ -262,6 +282,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNegativeHabitsRoute: AuthenticatedNegativeHabitsRoute,
   AuthenticatedReportRoute: AuthenticatedReportRoute,
   AuthenticatedRoutineRoute: AuthenticatedRoutineRoute,
+  AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedWorkRoute: AuthenticatedWorkRoute,
 }
 
