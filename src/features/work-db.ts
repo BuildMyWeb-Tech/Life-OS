@@ -12,9 +12,11 @@ export type WorkNode = {
   sort_order: number;
   done: boolean;
   done_on: string | null;
+  task_kind: "recurring" | "one_time";
   created_at: string;
   updated_at: string;
 };
+
 
 const QK = ["lifeos", "work_nodes"] as const;
 
