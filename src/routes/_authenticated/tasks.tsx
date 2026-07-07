@@ -111,7 +111,7 @@ function TasksPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Tasks"
+        title="To Do List"
         subtitle="One-off things to get done. Add a title, optional date and time."
         action={
           <Button onClick={openCreate} className="gap-2">
