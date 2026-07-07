@@ -286,6 +286,36 @@ function WorkPage() {
               placeholder="e.g. Project Development"
             />
           </div>
+          {addingUnder && addingUnder.depth >= 2 && (
+            <div className="space-y-2 pt-2">
+              <Label>Type</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={addKind === "recurring" ? "default" : "outline"}
+                  onClick={() => setAddKind("recurring")}
+                  className="flex-1"
+                >
+                  🔁 Recurring (daily)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={addKind === "one_time" ? "default" : "outline"}
+                  onClick={() => setAddKind("one_time")}
+                  className="flex-1"
+                >
+                  ✅ One-time
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {addKind === "recurring"
+                  ? "Resets to uncompleted each day."
+                  : "Removed automatically once marked done."}
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddingUnder(null)}>Cancel</Button>
             <Button onClick={submitAdd}>Add</Button>
