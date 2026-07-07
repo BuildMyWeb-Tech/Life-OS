@@ -28,7 +28,7 @@ const nav = [
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
   { to: "/habits", label: "Habits", icon: Flame },
   { to: "/work", label: "Work & Projects", icon: Briefcase },
-  { to: "/tasks", label: "Tasks", icon: CheckSquare },
+  { to: "/tasks", label: "To Do List", icon: CheckSquare },
   { to: "/categories", label: "Categories", icon: Tags },
   { to: "/negative-habits", label: "Avoid List", icon: Ban },
 ] as const;
