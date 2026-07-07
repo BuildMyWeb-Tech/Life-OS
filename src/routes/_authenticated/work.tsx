@@ -87,6 +87,7 @@ function WorkPage() {
   const [editing, setEditing] = useState<WorkNode | null>(null);
   const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(null);
   const [addTitle, setAddTitle] = useState("");
+  const [addKind, setAddKind] = useState<"recurring" | "one_time">("recurring");
   const COLLAPSE_KEY = "lifeos:work:collapsed";
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -159,16 +160,19 @@ function WorkPage() {
     const parent = addingUnder.parent;
     const siblings = byParent.get(parent?.id ?? null) ?? [];
     const type = TYPE_META[Math.min(addingUnder.depth, TYPE_META.length - 1)].key;
+    const canBeOneTime = addingUnder.depth >= 2; // work or task
     create.mutate(
       {
         parent_id: parent?.id ?? null,
         title: t,
         node_type: type,
         sort_order: siblings.length,
+        task_kind: canBeOneTime ? addKind : "recurring",
       },
       {
         onSuccess: () => {
           setAddTitle("");
+          setAddKind("recurring");
           setAddingUnder(null);
           toast.success("Added");
         },
@@ -178,6 +182,13 @@ function WorkPage() {
 
   const toggleDone = (n: WorkNode) => {
     const isDoneToday = n.done && n.done_on === today;
+    // One-time item: when marking done, remove it entirely (and its children).
+    if (!isDoneToday && n.task_kind === "one_time") {
+      del.mutate(n.id, {
+        onSuccess: () => toast.success("Completed & removed"),
+      });
+      return;
+    }
     update.mutate({
       id: n.id,
       done: !isDoneToday,
@@ -275,6 +286,36 @@ function WorkPage() {
               placeholder="e.g. Project Development"
             />
           </div>
+          {addingUnder && addingUnder.depth >= 2 && (
+            <div className="space-y-2 pt-2">
+              <Label>Type</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={addKind === "recurring" ? "default" : "outline"}
+                  onClick={() => setAddKind("recurring")}
+                  className="flex-1"
+                >
+                  🔁 Recurring (daily)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={addKind === "one_time" ? "default" : "outline"}
+                  onClick={() => setAddKind("one_time")}
+                  className="flex-1"
+                >
+                  ✅ One-time
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {addKind === "recurring"
+                  ? "Resets to uncompleted each day."
+                  : "Removed automatically once marked done."}
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddingUnder(null)}>Cancel</Button>
             <Button onClick={submitAdd}>Add</Button>
@@ -310,10 +351,11 @@ function EditForm({
   onSubmit,
 }: {
   node: WorkNode;
-  onSubmit: (patch: { title: string; notes: string | null }) => void;
+  onSubmit: (patch: { title: string; notes: string | null; task_kind: "recurring" | "one_time" }) => void;
 }) {
   const [title, setTitle] = useState(node.title);
   const [notes, setNotes] = useState(node.notes ?? "");
+  const [kind, setKind] = useState<"recurring" | "one_time">(node.task_kind ?? "recurring");
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -329,8 +371,31 @@ function EditForm({
           placeholder="Add any details, amounts, statuses…"
         />
       </div>
+      <div className="space-y-1">
+        <Label>Type</Label>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={kind === "recurring" ? "default" : "outline"}
+            onClick={() => setKind("recurring")}
+            className="flex-1"
+          >
+            🔁 Recurring
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={kind === "one_time" ? "default" : "outline"}
+            onClick={() => setKind("one_time")}
+            className="flex-1"
+          >
+            ✅ One-time
+          </Button>
+        </div>
+      </div>
       <DialogFooter>
-        <Button onClick={() => onSubmit({ title: title.trim() || node.title, notes: notes.trim() || null })}>
+        <Button onClick={() => onSubmit({ title: title.trim() || node.title, notes: notes.trim() || null, task_kind: kind })}>
           Save
         </Button>
       </DialogFooter>
@@ -507,6 +572,11 @@ function NodeRow({
             <span className="hidden text-[10px] uppercase tracking-wider text-muted-foreground sm:inline">
               {meta.label}
             </span>
+            {node.task_kind === "one_time" && (
+              <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                One-time
+              </span>
+            )}
           </div>
           {node.notes && (
             <p className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">

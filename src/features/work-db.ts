@@ -12,9 +12,11 @@ export type WorkNode = {
   sort_order: number;
   done: boolean;
   done_on: string | null;
+  task_kind: "recurring" | "one_time";
   created_at: string;
   updated_at: string;
 };
+
 
 const QK = ["lifeos", "work_nodes"] as const;
 
@@ -41,6 +43,7 @@ export function useCreateWorkNode() {
       notes?: string | null;
       node_type?: string;
       sort_order?: number;
+      task_kind?: "recurring" | "one_time";
     }) => {
       const { data: userData } = await supabase.auth.getUser();
       const user_id = userData.user?.id;
@@ -54,6 +57,7 @@ export function useCreateWorkNode() {
           notes: input.notes ?? null,
           node_type: input.node_type ?? "work",
           sort_order: input.sort_order ?? 0,
+          task_kind: input.task_kind ?? "recurring",
         })
         .select()
         .single();
@@ -75,6 +79,7 @@ export function useUpdateWorkNode() {
       done?: boolean;
       done_on?: string | null;
       node_type?: string;
+      task_kind?: "recurring" | "one_time";
     }) => {
       const { id, ...patch } = input;
       const { error } = await supabase.from("lifeos_work_nodes").update(patch).eq("id", id);

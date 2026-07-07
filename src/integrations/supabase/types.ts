@@ -265,6 +265,7 @@ export type Database = {
           notes: string | null
           parent_id: string | null
           sort_order: number
+          task_kind: string
           title: string
           updated_at: string
           user_id: string
@@ -278,6 +279,7 @@ export type Database = {
           notes?: string | null
           parent_id?: string | null
           sort_order?: number
+          task_kind?: string
           title: string
           updated_at?: string
           user_id: string
@@ -291,6 +293,7 @@ export type Database = {
           notes?: string | null
           parent_id?: string | null
           sort_order?: number
+          task_kind?: string
           title?: string
           updated_at?: string
           user_id?: string
