@@ -57,6 +57,7 @@ import {
   useReorderWorkNodes,
   type WorkNode,
 } from "@/features/work-db";
+import { useTasks, useUpdateTask, type Task } from "@/features/tasks-db";
 
 export const Route = createFileRoute("/_authenticated/work")({
   ssr: false,
