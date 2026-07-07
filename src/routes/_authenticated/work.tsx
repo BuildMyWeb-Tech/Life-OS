@@ -572,6 +572,11 @@ function NodeRow({
             <span className="hidden text-[10px] uppercase tracking-wider text-muted-foreground sm:inline">
               {meta.label}
             </span>
+            {node.task_kind === "one_time" && (
+              <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                One-time
+              </span>
+            )}
           </div>
           {node.notes && (
             <p className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
