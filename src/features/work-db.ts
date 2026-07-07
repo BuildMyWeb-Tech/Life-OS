@@ -79,6 +79,7 @@ export function useUpdateWorkNode() {
       done?: boolean;
       done_on?: string | null;
       node_type?: string;
+      task_kind?: "recurring" | "one_time";
     }) => {
       const { id, ...patch } = input;
       const { error } = await supabase.from("lifeos_work_nodes").update(patch).eq("id", id);
