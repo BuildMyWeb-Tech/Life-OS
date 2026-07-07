@@ -160,16 +160,19 @@ function WorkPage() {
     const parent = addingUnder.parent;
     const siblings = byParent.get(parent?.id ?? null) ?? [];
     const type = TYPE_META[Math.min(addingUnder.depth, TYPE_META.length - 1)].key;
+    const canBeOneTime = addingUnder.depth >= 2; // work or task
     create.mutate(
       {
         parent_id: parent?.id ?? null,
         title: t,
         node_type: type,
         sort_order: siblings.length,
+        task_kind: canBeOneTime ? addKind : "recurring",
       },
       {
         onSuccess: () => {
           setAddTitle("");
+          setAddKind("recurring");
           setAddingUnder(null);
           toast.success("Added");
         },
@@ -179,6 +182,13 @@ function WorkPage() {
 
   const toggleDone = (n: WorkNode) => {
     const isDoneToday = n.done && n.done_on === today;
+    // One-time item: when marking done, remove it entirely (and its children).
+    if (!isDoneToday && n.task_kind === "one_time") {
+      del.mutate(n.id, {
+        onSuccess: () => toast.success("Completed & removed"),
+      });
+      return;
+    }
     update.mutate({
       id: n.id,
       done: !isDoneToday,
