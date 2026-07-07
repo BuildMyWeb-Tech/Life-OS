@@ -351,10 +351,11 @@ function EditForm({
   onSubmit,
 }: {
   node: WorkNode;
-  onSubmit: (patch: { title: string; notes: string | null }) => void;
+  onSubmit: (patch: { title: string; notes: string | null; task_kind: "recurring" | "one_time" }) => void;
 }) {
   const [title, setTitle] = useState(node.title);
   const [notes, setNotes] = useState(node.notes ?? "");
+  const [kind, setKind] = useState<"recurring" | "one_time">(node.task_kind ?? "recurring");
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -370,8 +371,31 @@ function EditForm({
           placeholder="Add any details, amounts, statuses…"
         />
       </div>
+      <div className="space-y-1">
+        <Label>Type</Label>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={kind === "recurring" ? "default" : "outline"}
+            onClick={() => setKind("recurring")}
+            className="flex-1"
+          >
+            🔁 Recurring
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={kind === "one_time" ? "default" : "outline"}
+            onClick={() => setKind("one_time")}
+            className="flex-1"
+          >
+            ✅ One-time
+          </Button>
+        </div>
+      </div>
       <DialogFooter>
-        <Button onClick={() => onSubmit({ title: title.trim() || node.title, notes: notes.trim() || null })}>
+        <Button onClick={() => onSubmit({ title: title.trim() || node.title, notes: notes.trim() || null, task_kind: kind })}>
           Save
         </Button>
       </DialogFooter>
