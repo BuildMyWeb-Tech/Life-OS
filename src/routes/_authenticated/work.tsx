@@ -87,6 +87,7 @@ function WorkPage() {
   const [editing, setEditing] = useState<WorkNode | null>(null);
   const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(null);
   const [addTitle, setAddTitle] = useState("");
+  const [addKind, setAddKind] = useState<"recurring" | "one_time">("recurring");
   const COLLAPSE_KEY = "lifeos:work:collapsed";
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
