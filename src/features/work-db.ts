@@ -43,6 +43,7 @@ export function useCreateWorkNode() {
       notes?: string | null;
       node_type?: string;
       sort_order?: number;
+      task_kind?: "recurring" | "one_time";
     }) => {
       const { data: userData } = await supabase.auth.getUser();
       const user_id = userData.user?.id;
@@ -56,6 +57,7 @@ export function useCreateWorkNode() {
           notes: input.notes ?? null,
           node_type: input.node_type ?? "work",
           sort_order: input.sort_order ?? 0,
+          task_kind: input.task_kind ?? "recurring",
         })
         .select()
         .single();
