@@ -57,6 +57,7 @@ import {
   useReorderWorkNodes,
   type WorkNode,
 } from "@/features/work-db";
+import { useTasks, useUpdateTask, type Task } from "@/features/tasks-db";
 
 export const Route = createFileRoute("/_authenticated/work")({
   ssr: false,
@@ -579,7 +580,12 @@ function PreviewList({
 }) {
   const lines = useMemo(() => buildPreviewLines(byParent, today), [byParent, today]);
 
-  if (lines.length === 0) {
+  const { data: tasks = [] } = useTasks();
+  const updateTask = useUpdateTask();
+  const pendingTasks = useMemo(() => tasks.filter((t) => !t.done), [tasks]);
+
+  const nothingPending = lines.length === 0 && pendingTasks.length === 0;
+  if (nothingPending) {
     return (
       <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
         🎉 Nothing pending. All items completed.
@@ -598,7 +604,8 @@ function PreviewList({
   return (
     <div className="space-y-4">
       <div className="text-xs text-muted-foreground">
-        {lines.length} pending {lines.length === 1 ? "item" : "items"}
+        {lines.length} pending work {lines.length === 1 ? "item" : "items"}
+        {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
       </div>
       {[...groups.entries()].map(([companyId, items]) => {
         const company = items[0].path[0];
@@ -646,6 +653,40 @@ function PreviewList({
           </div>
         );
       })}
+
+      {pendingTasks.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <CheckSquare className="h-4 w-4 text-accent" />
+            <p className="text-sm font-semibold">To Do List</p>
+            <span className="text-xs text-muted-foreground">
+              · {pendingTasks.length} pending
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {pendingTasks.map((t: Task) => (
+              <label
+                key={t.id}
+                className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
+              >
+                <Checkbox
+                  checked={false}
+                  onCheckedChange={() => updateTask.mutate({ id: t.id, done: true })}
+                  className="mt-0.5"
+                />
+                <span className="flex-1 leading-snug">
+                  <span className="font-medium text-foreground">{t.title}</span>
+                  {(t.due_date || t.due_time) && (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {t.due_date ?? ""}{t.due_time ? ` · ${t.due_time}` : ""}
+                    </span>
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

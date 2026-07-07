@@ -28,7 +28,7 @@ const nav = [
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
   { to: "/habits", label: "Habits", icon: Flame },
   { to: "/work", label: "Work & Projects", icon: Briefcase },
-  { to: "/tasks", label: "Tasks", icon: CheckSquare },
+  { to: "/tasks", label: "To Do List", icon: CheckSquare },
   { to: "/categories", label: "Categories", icon: Tags },
   { to: "/negative-habits", label: "Avoid List", icon: Ban },
 ] as const;
@@ -127,8 +127,45 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="text-sm font-semibold">LifeOS</span>
           <div className="w-9" />
         </div>
-        <div className="mx-auto w-full max-w-7xl p-4 md:p-8">{children}</div>
+        <div className="mx-auto w-full max-w-7xl p-4 pb-24 md:p-8 lg:pb-8">{children}</div>
+        <BottomNav pathname={pathname} />
       </main>
     </div>
+  );
+}
+
+const bottomNav = [
+  { to: "/routine", label: "Routine", icon: ListChecks },
+  { to: "/work", label: "Work", icon: Briefcase },
+  { to: "/tasks", label: "To Do", icon: CheckSquare },
+  { to: "/report", label: "Report", icon: BarChart3 },
+  { to: "/habits", label: "Habits", icon: Flame },
+] as const;
+
+function BottomNav({ pathname }: { pathname: string }) {
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/85 backdrop-blur-xl lg:hidden">
+      <ul className="mx-auto grid max-w-2xl grid-cols-5">
+        {bottomNav.map((item) => {
+          const active = pathname === item.to;
+          const Icon = item.icon;
+          return (
+            <li key={item.to}>
+              <Link
+                to={item.to}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-medium transition-colors",
+                  active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                <span>{item.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="h-[env(safe-area-inset-bottom)]" />
+    </nav>
   );
 }
