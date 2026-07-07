@@ -1,0 +1,1 @@
+ALTER TABLE public.lifeos_work_nodes ADD COLUMN IF NOT EXISTS task_kind text NOT NULL DEFAULT 'recurring' CHECK (task_kind IN ('recurring','one_time'));
