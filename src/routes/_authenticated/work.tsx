@@ -370,11 +370,19 @@ function EditForm({
   onSubmit,
 }: {
   node: WorkNode;
-  onSubmit: (patch: { title: string; notes: string | null; task_kind: "recurring" | "one_time" }) => void;
+  onSubmit: (patch: {
+    title: string;
+    notes: string | null;
+    task_kind: "recurring" | "one_time";
+    due_date: string | null;
+    due_time: string | null;
+  }) => void;
 }) {
   const [title, setTitle] = useState(node.title);
   const [notes, setNotes] = useState(node.notes ?? "");
   const [kind, setKind] = useState<"recurring" | "one_time">(node.task_kind ?? "recurring");
+  const [dueDate, setDueDate] = useState(node.due_date ?? "");
+  const [dueTime, setDueTime] = useState(node.due_time ? node.due_time.slice(0, 5) : "");
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -413,8 +421,31 @@ function EditForm({
           </Button>
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs">Due date (optional)</Label>
+          <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Time (optional)</Label>
+          <Input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
+        </div>
+      </div>
+      {dueDate && dueTime && (
+        <p className="text-xs text-primary">⏰ You'll be reminded at that time.</p>
+      )}
       <DialogFooter>
-        <Button onClick={() => onSubmit({ title: title.trim() || node.title, notes: notes.trim() || null, task_kind: kind })}>
+        <Button
+          onClick={() =>
+            onSubmit({
+              title: title.trim() || node.title,
+              notes: notes.trim() || null,
+              task_kind: kind,
+              due_date: dueDate || null,
+              due_time: dueTime ? `${dueTime}:00` : null,
+            })
+          }
+        >
           Save
         </Button>
       </DialogFooter>
