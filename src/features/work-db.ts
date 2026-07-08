@@ -13,6 +13,8 @@ export type WorkNode = {
   done: boolean;
   done_on: string | null;
   task_kind: "recurring" | "one_time";
+  due_date: string | null;
+  due_time: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -44,6 +46,8 @@ export function useCreateWorkNode() {
       node_type?: string;
       sort_order?: number;
       task_kind?: "recurring" | "one_time";
+      due_date?: string | null;
+      due_time?: string | null;
     }) => {
       const { data: userData } = await supabase.auth.getUser();
       const user_id = userData.user?.id;
