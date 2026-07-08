@@ -320,6 +320,19 @@ function WorkPage() {
                   ? "Resets to uncompleted each day."
                   : "Removed automatically once marked done."}
               </p>
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Due date (optional)</Label>
+                  <Input type="date" value={addDueDate} onChange={(e) => setAddDueDate(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Time (optional)</Label>
+                  <Input type="time" value={addDueTime} onChange={(e) => setAddDueTime(e.target.value)} />
+                </div>
+              </div>
+              {addDueDate && addDueTime && (
+                <p className="text-xs text-primary">⏰ You'll be reminded at that time.</p>
+              )}
             </div>
           )}
           <DialogFooter>
