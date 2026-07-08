@@ -62,6 +62,8 @@ export function useCreateWorkNode() {
           node_type: input.node_type ?? "work",
           sort_order: input.sort_order ?? 0,
           task_kind: input.task_kind ?? "recurring",
+          due_date: input.due_date ?? null,
+          due_time: input.due_time ?? null,
         })
         .select()
         .single();
@@ -84,6 +86,8 @@ export function useUpdateWorkNode() {
       done_on?: string | null;
       node_type?: string;
       task_kind?: "recurring" | "one_time";
+      due_date?: string | null;
+      due_time?: string | null;
     }) => {
       const { id, ...patch } = input;
       const { error } = await supabase.from("lifeos_work_nodes").update(patch).eq("id", id);
