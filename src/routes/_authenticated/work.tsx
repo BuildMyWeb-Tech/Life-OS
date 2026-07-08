@@ -88,6 +88,8 @@ function WorkPage() {
   const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(null);
   const [addTitle, setAddTitle] = useState("");
   const [addKind, setAddKind] = useState<"recurring" | "one_time">("recurring");
+  const [addDueDate, setAddDueDate] = useState("");
+  const [addDueTime, setAddDueTime] = useState("");
   const COLLAPSE_KEY = "lifeos:work:collapsed";
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -168,11 +170,15 @@ function WorkPage() {
         node_type: type,
         sort_order: siblings.length,
         task_kind: canBeOneTime ? addKind : "recurring",
+        due_date: canBeOneTime && addDueDate ? addDueDate : null,
+        due_time: canBeOneTime && addDueTime ? `${addDueTime}:00` : null,
       },
       {
         onSuccess: () => {
           setAddTitle("");
           setAddKind("recurring");
+          setAddDueDate("");
+          setAddDueTime("");
           setAddingUnder(null);
           toast.success("Added");
         },
