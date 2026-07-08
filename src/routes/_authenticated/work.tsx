@@ -88,6 +88,8 @@ function WorkPage() {
   const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(null);
   const [addTitle, setAddTitle] = useState("");
   const [addKind, setAddKind] = useState<"recurring" | "one_time">("recurring");
+  const [addDueDate, setAddDueDate] = useState("");
+  const [addDueTime, setAddDueTime] = useState("");
   const COLLAPSE_KEY = "lifeos:work:collapsed";
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -168,11 +170,15 @@ function WorkPage() {
         node_type: type,
         sort_order: siblings.length,
         task_kind: canBeOneTime ? addKind : "recurring",
+        due_date: canBeOneTime && addDueDate ? addDueDate : null,
+        due_time: canBeOneTime && addDueTime ? `${addDueTime}:00` : null,
       },
       {
         onSuccess: () => {
           setAddTitle("");
           setAddKind("recurring");
+          setAddDueDate("");
+          setAddDueTime("");
           setAddingUnder(null);
           toast.success("Added");
         },
@@ -314,6 +320,19 @@ function WorkPage() {
                   ? "Resets to uncompleted each day."
                   : "Removed automatically once marked done."}
               </p>
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Due date (optional)</Label>
+                  <Input type="date" value={addDueDate} onChange={(e) => setAddDueDate(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Time (optional)</Label>
+                  <Input type="time" value={addDueTime} onChange={(e) => setAddDueTime(e.target.value)} />
+                </div>
+              </div>
+              {addDueDate && addDueTime && (
+                <p className="text-xs text-primary">⏰ You'll be reminded at that time.</p>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -351,11 +370,19 @@ function EditForm({
   onSubmit,
 }: {
   node: WorkNode;
-  onSubmit: (patch: { title: string; notes: string | null; task_kind: "recurring" | "one_time" }) => void;
+  onSubmit: (patch: {
+    title: string;
+    notes: string | null;
+    task_kind: "recurring" | "one_time";
+    due_date: string | null;
+    due_time: string | null;
+  }) => void;
 }) {
   const [title, setTitle] = useState(node.title);
   const [notes, setNotes] = useState(node.notes ?? "");
   const [kind, setKind] = useState<"recurring" | "one_time">(node.task_kind ?? "recurring");
+  const [dueDate, setDueDate] = useState(node.due_date ?? "");
+  const [dueTime, setDueTime] = useState(node.due_time ? node.due_time.slice(0, 5) : "");
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -394,8 +421,31 @@ function EditForm({
           </Button>
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs">Due date (optional)</Label>
+          <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Time (optional)</Label>
+          <Input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
+        </div>
+      </div>
+      {dueDate && dueTime && (
+        <p className="text-xs text-primary">⏰ You'll be reminded at that time.</p>
+      )}
       <DialogFooter>
-        <Button onClick={() => onSubmit({ title: title.trim() || node.title, notes: notes.trim() || null, task_kind: kind })}>
+        <Button
+          onClick={() =>
+            onSubmit({
+              title: title.trim() || node.title,
+              notes: notes.trim() || null,
+              task_kind: kind,
+              due_date: dueDate || null,
+              due_time: dueTime ? `${dueTime}:00` : null,
+            })
+          }
+        >
           Save
         </Button>
       </DialogFooter>

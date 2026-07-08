@@ -260,6 +260,8 @@ export type Database = {
           created_at: string
           done: boolean
           done_on: string | null
+          due_date: string | null
+          due_time: string | null
           id: string
           node_type: string
           notes: string | null
@@ -274,6 +276,8 @@ export type Database = {
           created_at?: string
           done?: boolean
           done_on?: string | null
+          due_date?: string | null
+          due_time?: string | null
           id?: string
           node_type?: string
           notes?: string | null
@@ -288,6 +292,8 @@ export type Database = {
           created_at?: string
           done?: boolean
           done_on?: string | null
+          due_date?: string | null
+          due_time?: string | null
           id?: string
           node_type?: string
           notes?: string | null

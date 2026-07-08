@@ -19,6 +19,7 @@ import { useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { logout } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { Reminders } from "@/features/reminders";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -130,6 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto w-full max-w-7xl p-4 pb-24 md:p-8 lg:pb-8">{children}</div>
         <BottomNav pathname={pathname} />
       </main>
+      <Reminders />
     </div>
   );
 }
