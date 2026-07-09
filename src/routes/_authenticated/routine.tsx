@@ -57,6 +57,28 @@ export const Route = createFileRoute("/_authenticated/routine")({
   component: RoutinePage,
 });
 
+type RoutineFilter = "all" | "completed" | "pending";
+const FILTER_KEY = "lifeos:routine:filter";
+
+function loadRoutineFilter(): RoutineFilter {
+  if (typeof window === "undefined") return "all";
+  try {
+    const v = localStorage.getItem(FILTER_KEY);
+    if (v === "all" || v === "completed" || v === "pending") return v;
+  } catch {
+    /* ignore */
+  }
+  return "all";
+}
+
+function saveRoutineFilter(v: RoutineFilter) {
+  try {
+    localStorage.setItem(FILTER_KEY, v);
+  } catch {
+    /* ignore */
+  }
+}
+
 function shiftDate(key: string, delta: number) {
   const [y, m, d] = key.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
@@ -70,7 +92,7 @@ function shiftDate(key: string, delta: number) {
 function RoutinePage() {
   const today = todayKey();
   const [selectedDate, setSelectedDate] = useState(today);
-  const [filter, setFilter] = useState<"all" | "completed" | "pending">("all");
+  const [filter, setFilter] = useState<RoutineFilter>(loadRoutineFilter);
 
   const { data: items = [], isFetched } = useRoutineItems();
   const { data: logs = [] } = useRoutineLogs(selectedDate, selectedDate);
@@ -195,7 +217,15 @@ function RoutinePage() {
         <Progress value={pct} />
       </div>
 
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)} className="mb-4">
+      <Tabs
+        value={filter}
+        onValueChange={(v) => {
+          const next = v as RoutineFilter;
+          setFilter(next);
+          saveRoutineFilter(next);
+        }}
+        className="mb-4"
+      >
         <TabsList className="grid w-full grid-cols-3 sm:w-auto">
           <TabsTrigger value="all">All ({items.length})</TabsTrigger>
           <TabsTrigger value="completed">Completed ({done})</TabsTrigger>

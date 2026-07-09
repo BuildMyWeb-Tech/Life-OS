@@ -19,7 +19,6 @@ export type WorkNode = {
   updated_at: string;
 };
 
-
 const QK = ["lifeos", "work_nodes"] as const;
 
 export function useWorkNodes() {
@@ -123,6 +122,27 @@ export function useReorderWorkNodes() {
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Bulk-reset: mark a set of nodes back to not-done (used by the "Reset" action). */
+export function useResetAllWorkNodes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        const { error } = await supabase
+          .from("lifeos_work_nodes")
+          .update({ done: false, done_on: null })
+          .eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK });
+      toast.success("All work reset to pending");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 }

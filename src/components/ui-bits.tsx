@@ -1,5 +1,13 @@
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { MoreVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function PageHeader({
   title,
@@ -52,5 +60,48 @@ export function StatCard({
       <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
       {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
+  );
+}
+
+export type RowAction = {
+  label: string;
+  icon?: ReactNode;
+  onClick: () => void;
+  destructive?: boolean;
+};
+
+/**
+ * A compact "•••" trigger that reveals row actions (edit/delete/etc.) in a
+ * dropdown instead of showing every icon inline. Saves horizontal space on
+ * mobile and keeps titles from being squeezed/wrapped awkwardly.
+ */
+export function RowActions({ actions, className }: { actions: RowAction[]; className?: string }) {
+  if (actions.length === 0) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="icon"
+          variant="ghost"
+          className={cn("shrink-0", className)}
+          aria-label="More actions"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        {actions.map((a, i) => (
+          <DropdownMenuItem
+            key={i}
+            onClick={a.onClick}
+            className={cn("gap-2", a.destructive && "text-destructive focus:text-destructive")}
+          >
+            {a.icon}
+            {a.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

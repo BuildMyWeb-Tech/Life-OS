@@ -28,13 +28,14 @@ import {
   FolderKanban,
   ListChecks,
   CheckSquare,
-  Check,
   Eye,
+  CheckCircle2,
   ArrowLeft,
+  RotateCcw,
 } from "lucide-react";
 
 import { toast } from "sonner";
-import { PageHeader } from "@/components/ui-bits";
+import { PageHeader, RowActions } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,6 +56,7 @@ import {
   useUpdateWorkNode,
   useDeleteWorkNode,
   useReorderWorkNodes,
+  useResetAllWorkNodes,
   type WorkNode,
 } from "@/features/work-db";
 import { useTasks, useUpdateTask, type Task } from "@/features/tasks-db";
@@ -76,16 +78,52 @@ function iconFor(depth: number) {
   return m;
 }
 
+/**
+ * A recurring node is "done" only for today's date (resets automatically each
+ * day once done_on stops matching today). A one-time node just stays done
+ * until it's explicitly toggled back — it is never auto-deleted, so it can
+ * show up in the Completed Works view and be reverted to Pending.
+ */
+function isNodeDone(n: WorkNode, today: string) {
+  if (n.task_kind === "one_time") return n.done;
+  return n.done && n.done_on === today;
+}
+
+type ViewMode = "tree" | "pending" | "completed";
+const VIEW_KEY = "lifeos:work:view";
+
+function loadView(): ViewMode {
+  if (typeof window === "undefined") return "tree";
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    if (v === "tree" || v === "pending" || v === "completed") return v;
+  } catch {
+    /* ignore */
+  }
+  return "tree";
+}
+
+function saveView(v: ViewMode) {
+  try {
+    localStorage.setItem(VIEW_KEY, v);
+  } catch {
+    /* ignore */
+  }
+}
+
 function WorkPage() {
   const { data: nodes = [] } = useWorkNodes();
   const create = useCreateWorkNode();
   const update = useUpdateWorkNode();
   const del = useDeleteWorkNode();
   const reorder = useReorderWorkNodes();
+  const resetAll = useResetAllWorkNodes();
 
   const [newCompany, setNewCompany] = useState("");
   const [editing, setEditing] = useState<WorkNode | null>(null);
-  const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(null);
+  const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(
+    null,
+  );
   const [addTitle, setAddTitle] = useState("");
   const [addKind, setAddKind] = useState<"recurring" | "one_time">("recurring");
   const [addDueDate, setAddDueDate] = useState("");
@@ -107,22 +145,11 @@ function WorkPage() {
   };
   const today = logicalTodayKey();
 
-  const PREVIEW_KEY = "lifeos:work:preview";
-  const [preview, setPreview] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem(PREVIEW_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-  const togglePreview = (v: boolean) => {
-    setPreview(v);
-    try {
-      localStorage.setItem(PREVIEW_KEY, v ? "1" : "0");
-    } catch {}
+  const [view, setView] = useState<ViewMode>(loadView);
+  const changeView = (v: ViewMode) => {
+    setView(v);
+    saveView(v);
   };
-
 
   const byParent = useMemo(() => {
     const m = new Map<string | null, WorkNode[]>();
@@ -187,46 +214,97 @@ function WorkPage() {
   };
 
   const toggleDone = (n: WorkNode) => {
-    const isDoneToday = n.done && n.done_on === today;
-    // One-time item: when marking done, remove it entirely (and its children).
-    if (!isDoneToday && n.task_kind === "one_time") {
-      del.mutate(n.id, {
-        onSuccess: () => toast.success("Completed & removed"),
-      });
-      return;
-    }
+    const currentlyDone = isNodeDone(n, today);
     update.mutate({
       id: n.id,
-      done: !isDoneToday,
-      done_on: isDoneToday ? null : today,
+      done: !currentlyDone,
+      done_on: !currentlyDone ? today : null,
     });
   };
 
+  const doneCount = nodes.filter((n) => isNodeDone(n, today)).length;
+
+  const resetEverything = () => {
+    const ids = nodes.filter((n) => n.done).map((n) => n.id);
+    if (ids.length === 0) {
+      toast.info("Nothing to reset — everything is already pending.");
+      return;
+    }
+    if (
+      confirm(`Reset ${ids.length} completed item${ids.length === 1 ? "" : "s"} back to pending?`)
+    ) {
+      resetAll.mutate(ids);
+    }
+  };
+
+  const headerTitle =
+    view === "pending"
+      ? "Pending Works"
+      : view === "completed"
+        ? "Completed Works"
+        : "Work & Projects";
+  const headerSubtitle =
+    view === "pending"
+      ? "Only incomplete items. Tick to mark done. A completed parent hides its children."
+      : view === "completed"
+        ? "Everything marked done. Untick to move an item back to Pending Works."
+        : "Companies → categories → works → tasks. Drag to reorder within a group.";
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <PageHeader
-          title={preview ? "Preview — Pending Work" : "Work & Projects"}
-          subtitle={
-            preview
-              ? "Only incomplete items. Tick to mark done. Parent completed hides its children."
-              : "Companies → categories → works → tasks. Drag to reorder within a group."
-          }
-        />
-        {preview ? (
-          <Button variant="outline" className="gap-2" onClick={() => togglePreview(false)}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Button>
-        ) : (
-          <Button variant="outline" className="gap-2" onClick={() => togglePreview(true)}>
-            <Eye className="h-4 w-4" /> Preview
-          </Button>
-        )}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageHeader title={headerTitle} subtitle={headerSubtitle} />
+        <div className="flex flex-wrap gap-2">
+          {view === "tree" ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => changeView("pending")}
+              >
+                <Eye className="h-4 w-4" /> Pending Works
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => changeView("completed")}
+              >
+                <CheckCircle2 className="h-4 w-4" /> Completed Works
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={resetEverything}
+                title="Move all completed items back to pending"
+              >
+                <RotateCcw className="h-4 w-4" /> Reset{doneCount > 0 ? ` (${doneCount})` : ""}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => changeView("tree")}
+            >
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
+          )}
+        </div>
       </div>
 
-      {preview ? (
-        <PreviewList byParent={byParent} today={today} onToggleDone={toggleDone} />
-      ) : (
+      {view === "pending" && (
+        <PendingList byParent={byParent} today={today} onToggleDone={toggleDone} />
+      )}
+
+      {view === "completed" && (
+        <CompletedList byParent={byParent} today={today} onToggleDone={toggleDone} />
+      )}
+
+      {view === "tree" && (
         <>
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row">
             <Input
@@ -271,7 +349,6 @@ function WorkPage() {
           </div>
         </>
       )}
-
 
       {/* Add child dialog */}
       <Dialog open={!!addingUnder} onOpenChange={(o) => !o && setAddingUnder(null)}>
@@ -318,16 +395,24 @@ function WorkPage() {
               <p className="text-xs text-muted-foreground">
                 {addKind === "recurring"
                   ? "Resets to uncompleted each day."
-                  : "Removed automatically once marked done."}
+                  : "Stays completed (visible under Completed Works) until you toggle it back."}
               </p>
               <div className="grid grid-cols-2 gap-2 pt-2">
                 <div className="space-y-1">
                   <Label className="text-xs">Due date (optional)</Label>
-                  <Input type="date" value={addDueDate} onChange={(e) => setAddDueDate(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={addDueDate}
+                    onChange={(e) => setAddDueDate(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Time (optional)</Label>
-                  <Input type="time" value={addDueTime} onChange={(e) => setAddDueTime(e.target.value)} />
+                  <Input
+                    type="time"
+                    value={addDueTime}
+                    onChange={(e) => setAddDueTime(e.target.value)}
+                  />
                 </div>
               </div>
               {addDueDate && addDueTime && (
@@ -336,7 +421,9 @@ function WorkPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddingUnder(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setAddingUnder(null)}>
+              Cancel
+            </Button>
             <Button onClick={submitAdd}>Add</Button>
           </DialogFooter>
         </DialogContent>
@@ -352,10 +439,7 @@ function WorkPage() {
             <EditForm
               node={editing}
               onSubmit={(patch) => {
-                update.mutate(
-                  { id: editing.id, ...patch },
-                  { onSuccess: () => setEditing(null) },
-                );
+                update.mutate({ id: editing.id, ...patch }, { onSuccess: () => setEditing(null) });
               }}
             />
           )}
@@ -491,7 +575,10 @@ function TreeLevel({
     const newIdx = items.findIndex((i) => i.id === over.id);
     if (oldIdx < 0 || newIdx < 0) return;
     const next = arrayMove(items, oldIdx, newIdx);
-    onReorderSiblings(parentId, next.map((i) => i.id));
+    onReorderSiblings(
+      parentId,
+      next.map((i) => i.id),
+    );
   };
 
   if (items.length === 0) return null;
@@ -499,7 +586,12 @@ function TreeLevel({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-        <div className={cn("space-y-2", depth > 0 && "ml-4 border-l border-border/60 pl-4")}>
+        <div
+          className={cn(
+            "space-y-2",
+            depth > 0 && "ml-2 border-l border-border/60 pl-2 sm:ml-4 sm:pl-4",
+          )}
+        >
           {items.map((n) => (
             <NodeRow
               key={n.id}
@@ -512,7 +604,7 @@ function TreeLevel({
               onEdit={() => onEdit(n)}
               onDelete={() => onDelete(n)}
               onToggleDone={() => onToggleDone(n)}
-              effectiveDone={n.done && n.done_on === today}
+              effectiveDone={isNodeDone(n, today)}
             >
               {!collapsed.has(n.id) && (
                 <TreeLevel
@@ -578,14 +670,14 @@ function NodeRow({
     <div ref={setNodeRef} style={style}>
       <div
         className={cn(
-          "group flex items-start gap-2 rounded-xl border border-border bg-card p-2.5 transition-colors hover:bg-accent/20",
+          "group flex items-start gap-1.5 rounded-xl border border-border bg-card p-2.5 transition-colors hover:bg-accent/20 sm:gap-2",
           depth === 0 && "bg-gradient-to-r from-primary/5 to-transparent",
         )}
       >
         <button
           {...attributes}
           {...listeners}
-          className="mt-1 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          className="mt-1 shrink-0 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
           aria-label="Drag"
         >
           <GripVertical className="h-4 w-4" />
@@ -594,7 +686,7 @@ function NodeRow({
         <button
           onClick={onToggleCollapse}
           className={cn(
-            "mt-0.5 rounded p-0.5 text-muted-foreground hover:bg-accent/40",
+            "mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent/40",
             !hasChildren && "invisible",
           )}
           aria-label="Toggle"
@@ -604,12 +696,16 @@ function NodeRow({
           />
         </button>
 
-        <Checkbox checked={effectiveDone} onCheckedChange={onToggleDone} className="mt-1" />
+        <Checkbox
+          checked={effectiveDone}
+          onCheckedChange={onToggleDone}
+          className="mt-1 shrink-0"
+        />
 
         <Icon className={cn("mt-1 h-4 w-4 shrink-0", meta.color)} />
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <p
               className={cn(
                 "break-words text-sm font-medium leading-snug",
@@ -619,7 +715,7 @@ function NodeRow({
             >
               {node.title}
             </p>
-            <span className="hidden text-[10px] uppercase tracking-wider text-muted-foreground sm:inline">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               {meta.label}
             </span>
             {node.task_kind === "one_time" && (
@@ -636,23 +732,23 @@ function NodeRow({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1 opacity-70 group-hover:opacity-100">
-          <Button size="sm" variant="ghost" onClick={onAddChild} title={`Add ${nextMeta.label}`}>
-            <Plus className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onEdit} title="Edit">
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onDelete}
-            title="Delete"
-            className="text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+        <RowActions
+          className="opacity-100"
+          actions={[
+            {
+              label: `Add ${nextMeta.label}`,
+              icon: <Plus className="h-4 w-4" />,
+              onClick: onAddChild,
+            },
+            { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
+            {
+              label: "Delete",
+              icon: <Trash2 className="h-4 w-4" />,
+              onClick: onDelete,
+              destructive: true,
+            },
+          ]}
+        />
       </div>
 
       {hasChildren && collapsedOpen && <div className="mt-2">{children}</div>}
@@ -660,24 +756,18 @@ function NodeRow({
   );
 }
 
-// Keep unused import happy in some setups
-void Check;
+type FlatLine = { path: WorkNode[]; leaf: WorkNode };
 
-type PreviewLine = { path: WorkNode[]; leaf: WorkNode };
-
-function buildPreviewLines(
-  byParent: Map<string | null, WorkNode[]>,
-  today: string,
-): PreviewLine[] {
-  const out: PreviewLine[] = [];
+/** Flatten the tree into leaf lines that are NOT done, skipping entire completed subtrees. */
+function buildPendingLines(byParent: Map<string | null, WorkNode[]>, today: string): FlatLine[] {
+  const out: FlatLine[] = [];
   const walk = (parentId: string | null, trail: WorkNode[]) => {
     const kids = byParent.get(parentId) ?? [];
     for (const n of kids) {
-      const done = n.done && n.done_on === today;
-      if (done) continue; // skip completed subtree
+      if (isNodeDone(n, today)) continue; // skip completed subtree
       const nextTrail = [...trail, n];
       const grand = byParent.get(n.id) ?? [];
-      const incompleteChildren = grand.filter((c) => !(c.done && c.done_on === today));
+      const incompleteChildren = grand.filter((c) => !isNodeDone(c, today));
       if (incompleteChildren.length === 0) {
         out.push({ path: nextTrail, leaf: n });
       } else {
@@ -689,7 +779,93 @@ function buildPreviewLines(
   return out;
 }
 
-function PreviewList({
+/** Flatten the tree into leaf lines that ARE done. A done node's own children
+ * aren't listed separately — the parent being done represents the whole subtree. */
+function buildCompletedLines(byParent: Map<string | null, WorkNode[]>, today: string): FlatLine[] {
+  const out: FlatLine[] = [];
+  const walk = (parentId: string | null, trail: WorkNode[]) => {
+    const kids = byParent.get(parentId) ?? [];
+    for (const n of kids) {
+      const nextTrail = [...trail, n];
+      if (isNodeDone(n, today)) {
+        out.push({ path: nextTrail, leaf: n });
+        continue; // don't descend into an already-completed branch
+      }
+      walk(n.id, nextTrail);
+    }
+  };
+  walk(null, []);
+  return out;
+}
+
+function GroupedLines({
+  lines,
+  checked,
+  onToggle,
+}: {
+  lines: FlatLine[];
+  checked: boolean;
+  onToggle: (n: WorkNode) => void;
+}) {
+  const groups = new Map<string, FlatLine[]>();
+  for (const l of lines) {
+    const key = l.path[0].id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(l);
+  }
+
+  return (
+    <div className="space-y-4">
+      {[...groups.entries()].map(([companyId, items]) => {
+        const company = items[0].path[0];
+        return (
+          <div key={companyId} className="rounded-2xl border border-border bg-card p-4">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold">{company.title}</p>
+              <span className="text-xs text-muted-foreground">· {items.length}</span>
+            </div>
+            <div className="space-y-1.5">
+              {items.map(({ path, leaf }) => (
+                <label
+                  key={path.map((p) => p.id).join(">")}
+                  className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => onToggle(leaf)}
+                    className="mt-0.5 shrink-0"
+                  />
+                  <span className="min-w-0 flex-1 break-words leading-snug">
+                    {path.map((n, i) => (
+                      <span key={n.id}>
+                        {i > 0 && <span className="mx-1.5 text-muted-foreground">›</span>}
+                        <span
+                          className={cn(
+                            i === 0 && "font-medium text-primary",
+                            i === path.length - 1 && "font-medium text-foreground",
+                            i > 0 && i < path.length - 1 && "text-muted-foreground",
+                            checked &&
+                              i === path.length - 1 &&
+                              "line-through text-muted-foreground",
+                          )}
+                        >
+                          {n.title}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PendingList({
   byParent,
   today,
   onToggleDone,
@@ -698,7 +874,7 @@ function PreviewList({
   today: string;
   onToggleDone: (n: WorkNode) => void;
 }) {
-  const lines = useMemo(() => buildPreviewLines(byParent, today), [byParent, today]);
+  const lines = useMemo(() => buildPendingLines(byParent, today), [byParent, today]);
 
   const { data: tasks = [] } = useTasks();
   const updateTask = useUpdateTask();
@@ -713,75 +889,21 @@ function PreviewList({
     );
   }
 
-  // Group by company (root)
-  const groups = new Map<string, PreviewLine[]>();
-  for (const l of lines) {
-    const key = l.path[0].id;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(l);
-  }
-
   return (
     <div className="space-y-4">
       <div className="text-xs text-muted-foreground">
         {lines.length} pending work {lines.length === 1 ? "item" : "items"}
         {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
       </div>
-      {[...groups.entries()].map(([companyId, items]) => {
-        const company = items[0].path[0];
-        return (
-          <div key={companyId} className="rounded-2xl border border-border bg-card p-4">
-            <div className="mb-2 flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
-              <p className="text-sm font-semibold">{company.title}</p>
-              <span className="text-xs text-muted-foreground">
-                · {items.length} pending
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              {items.map(({ path, leaf }) => (
-                <label
-                  key={path.map((p) => p.id).join(">")}
-                  className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={false}
-                    onCheckedChange={() => onToggleDone(leaf)}
-                    className="mt-0.5"
-                  />
-                  <span className="flex-1 leading-snug">
-                    {path.map((n, i) => (
-                      <span key={n.id}>
-                        {i > 0 && (
-                          <span className="mx-1.5 text-muted-foreground">›</span>
-                        )}
-                        <span
-                          className={cn(
-                            i === 0 && "font-medium text-primary",
-                            i === path.length - 1 && "font-medium text-foreground",
-                            i > 0 && i < path.length - 1 && "text-muted-foreground",
-                          )}
-                        >
-                          {n.title}
-                        </span>
-                      </span>
-                    ))}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        );
-      })}
+
+      <GroupedLines lines={lines} checked={false} onToggle={onToggleDone} />
 
       {pendingTasks.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-2 flex items-center gap-2">
             <CheckSquare className="h-4 w-4 text-accent" />
             <p className="text-sm font-semibold">To Do List</p>
-            <span className="text-xs text-muted-foreground">
-              · {pendingTasks.length} pending
-            </span>
+            <span className="text-xs text-muted-foreground">· {pendingTasks.length} pending</span>
           </div>
           <div className="space-y-1.5">
             {pendingTasks.map((t: Task) => (
@@ -792,13 +914,14 @@ function PreviewList({
                 <Checkbox
                   checked={false}
                   onCheckedChange={() => updateTask.mutate({ id: t.id, done: true })}
-                  className="mt-0.5"
+                  className="mt-0.5 shrink-0"
                 />
-                <span className="flex-1 leading-snug">
+                <span className="min-w-0 flex-1 break-words leading-snug">
                   <span className="font-medium text-foreground">{t.title}</span>
                   {(t.due_date || t.due_time) && (
                     <span className="ml-2 text-xs text-muted-foreground">
-                      {t.due_date ?? ""}{t.due_time ? ` · ${t.due_time}` : ""}
+                      {t.due_date ?? ""}
+                      {t.due_time ? ` · ${t.due_time}` : ""}
                     </span>
                   )}
                 </span>
@@ -811,3 +934,66 @@ function PreviewList({
   );
 }
 
+function CompletedList({
+  byParent,
+  today,
+  onToggleDone,
+}: {
+  byParent: Map<string | null, WorkNode[]>;
+  today: string;
+  onToggleDone: (n: WorkNode) => void;
+}) {
+  const lines = useMemo(() => buildCompletedLines(byParent, today), [byParent, today]);
+
+  const { data: tasks = [] } = useTasks();
+  const updateTask = useUpdateTask();
+  const doneTasks = useMemo(() => tasks.filter((t) => t.done), [tasks]);
+
+  const nothingDone = lines.length === 0 && doneTasks.length === 0;
+  if (nothingDone) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        Nothing completed yet. Finish something in Work &amp; Projects to see it here.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="text-xs text-muted-foreground">
+        {lines.length} completed work {lines.length === 1 ? "item" : "items"}
+        {doneTasks.length > 0 && ` · ${doneTasks.length} completed to-do`}
+        {" — untick to move back to Pending Works."}
+      </div>
+
+      <GroupedLines lines={lines} checked={true} onToggle={onToggleDone} />
+
+      {doneTasks.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <CheckSquare className="h-4 w-4 text-accent" />
+            <p className="text-sm font-semibold">To Do List</p>
+            <span className="text-xs text-muted-foreground">· {doneTasks.length} completed</span>
+          </div>
+          <div className="space-y-1.5">
+            {doneTasks.map((t: Task) => (
+              <label
+                key={t.id}
+                className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
+              >
+                <Checkbox
+                  checked={true}
+                  onCheckedChange={() => updateTask.mutate({ id: t.id, done: false })}
+                  className="mt-0.5 shrink-0"
+                />
+                <span className="min-w-0 flex-1 break-words leading-snug line-through text-muted-foreground">
+                  {t.title}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
