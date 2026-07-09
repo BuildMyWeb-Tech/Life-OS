@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { logicalTodayKey } from "@/lib/storage";
 
 type Fire = {
-  key: string; // unique per (source, id, iso-datetime)
+  key: string; // unique per (source, id, iso-datetime) — also used as the notification tag
   source: "task" | "work" | "routine";
   id: string;
   title: string;
@@ -42,7 +42,8 @@ function makeAlarm() {
     start() {
       stop = false;
       try {
-        const AC = window.AudioContext ||
+        const AC =
+          window.AudioContext ||
           (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
         if (!AC) return;
         ctx = new AC();
@@ -50,12 +51,24 @@ function makeAlarm() {
         timer = window.setInterval(beep, 700);
         // Auto-stop after 30s so it isn't annoying forever
         window.setTimeout(() => this.stop(), 30_000);
-      } catch { /* audio blocked */ }
+      } catch {
+        /* audio blocked */
+      }
     },
     stop() {
       stop = true;
-      if (timer) { clearInterval(timer); timer = null; }
-      if (ctx) { try { ctx.close(); } catch { /* noop */ } ctx = null; }
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      if (ctx) {
+        try {
+          ctx.close();
+        } catch {
+          /* noop */
+        }
+        ctx = null;
+      }
     },
   };
 }
@@ -65,10 +78,16 @@ function loadFired(): Set<string> {
   try {
     const raw = sessionStorage.getItem(FIRED_KEY);
     return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
-  } catch { return new Set(); }
+  } catch {
+    return new Set();
+  }
 }
 function saveFired(s: Set<string>) {
-  try { sessionStorage.setItem(FIRED_KEY, JSON.stringify([...s])); } catch { /* noop */ }
+  try {
+    sessionStorage.setItem(FIRED_KEY, JSON.stringify([...s]));
+  } catch {
+    /* noop */
+  }
 }
 
 function parseAt(dateStr: string, timeStr: string): Date | null {
@@ -97,9 +116,51 @@ export function Reminders() {
   const alarmRef = useRef<ReturnType<typeof makeAlarm> | null>(null);
   const firedRef = useRef<Set<string>>(new Set());
   const permAskedRef = useRef(false);
+  // Every fire currently known, keyed by its tag — kept fresh each tick so the
+  // service-worker message handler (registered once, outside this effect) can
+  // always resolve a tag back to its "mark done" callback.
+  const firesIndexRef = useRef<Map<string, Fire>>(new Map());
+  // Latest fireReminder implementation, so the SW message handler (and the
+  // snooze timer) always call the version with fresh mutate() functions.
+  const fireReminderRef = useRef<((f: Fire) => void) | null>(null);
 
   // hydrate fired-set once
-  useEffect(() => { firedRef.current = loadFired(); }, []);
+  useEffect(() => {
+    firedRef.current = loadFired();
+  }, []);
+
+  // Register the service worker once (enables actionable, persistent OS
+  // notifications via reg.showNotification — see public/sw.js). This does
+  // NOT enable alarms while the app is fully closed; that needs a server
+  // push service, which this project doesn't have yet.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* noop */
+    });
+
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; action?: string; tag?: string } | undefined;
+      if (!data || data.type !== "reminder-action" || !data.tag) return;
+      const fire = firesIndexRef.current.get(data.tag);
+      if (!fire) return;
+      if (data.action === "done") {
+        fire.onDone?.();
+        setActive((cur) => (cur?.key === fire.key ? null : cur));
+        alarmRef.current?.stop();
+      } else if (data.action === "snooze") {
+        setActive((cur) => (cur?.key === fire.key ? null : cur));
+        alarmRef.current?.stop();
+        window.setTimeout(() => fireReminderRef.current?.(fire), 5 * 60 * 1000);
+        toast.info(`Snoozed "${fire.title}" for 5 minutes`);
+      } else {
+        // Notification body tapped — bring the in-app reminder modal back up.
+        setActive(fire);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
 
   // Ask notification permission after first user interaction (browsers require gesture on some)
   useEffect(() => {
@@ -108,7 +169,11 @@ export function Reminders() {
     const ask = () => {
       permAskedRef.current = true;
       if (Notification.permission === "default") {
-        try { Notification.requestPermission(); } catch { /* noop */ }
+        try {
+          Notification.requestPermission();
+        } catch {
+          /* noop */
+        }
       }
       window.removeEventListener("pointerdown", ask);
       window.removeEventListener("keydown", ask);
@@ -134,7 +199,10 @@ export function Reminders() {
         if (!when) continue;
         out.push({
           key: `task:${t.id}:${when.toISOString()}`,
-          source: "task", id: t.id, title: t.title, when,
+          source: "task",
+          id: t.id,
+          title: t.title,
+          when,
           meta: "To Do",
           onDone: () => updateTask.mutate({ id: t.id, done: true }),
         });
@@ -147,7 +215,10 @@ export function Reminders() {
         if (!when) continue;
         out.push({
           key: `work:${n.id}:${when.toISOString()}`,
-          source: "work", id: n.id, title: n.title, when,
+          source: "work",
+          id: n.id,
+          title: n.title,
+          when,
           meta: "Work & Projects",
           onDone: () => updateNode.mutate({ id: n.id, done: true, done_on: today }),
         });
@@ -160,7 +231,10 @@ export function Reminders() {
         if (!when) continue;
         out.push({
           key: `routine:${it.id}:${when.toISOString()}`,
-          source: "routine", id: it.id, title: it.title, when,
+          source: "routine",
+          id: it.id,
+          title: it.title,
+          when,
           meta: "Daily Routine",
           onDone: () => toggleRoutine.mutate({ item_id: it.id, log_date: today, done: true }),
         });
@@ -168,9 +242,64 @@ export function Reminders() {
       return out;
     };
 
+    const fireReminder = (f: Fire) => {
+      // Prefer a service-worker-backed notification: it supports action
+      // buttons (Mark done / Snooze) and tends to be more persistent than a
+      // plain `new Notification()`. Falls back gracefully if unavailable.
+      (async () => {
+        if (typeof window === "undefined" || !("Notification" in window)) return;
+        if (Notification.permission !== "granted") return;
+        const body = `${f.meta} • ${f.when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+        try {
+          if ("serviceWorker" in navigator) {
+            const reg = await navigator.serviceWorker.ready;
+            await reg.showNotification(`⏰ ${f.title}`, {
+              body,
+              tag: f.key,
+              requireInteraction: true,
+              // Actions are only supported via ServiceWorkerRegistration.showNotification.
+              // @ts-expect-error — actions/vibrate aren't in the lib.dom NotificationOptions type yet
+              actions: [
+                { action: "done", title: "✅ Mark done" },
+                { action: "snooze", title: "⏰ Snooze 5m" },
+              ],
+              vibrate: [200, 100, 200, 100, 400],
+            });
+            return;
+          }
+        } catch {
+          /* fall through to plain Notification below */
+        }
+        try {
+          const n = new Notification(`⏰ ${f.title}`, {
+            body,
+            tag: f.key,
+            requireInteraction: true,
+          });
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+        } catch {
+          /* noop */
+        }
+      })();
+
+      // Toast
+      toast(`⏰ ${f.title}`, { description: f.meta, duration: 10_000 });
+      // In-app modal + alarm
+      alarmRef.current?.stop();
+      const a = makeAlarm();
+      alarmRef.current = a;
+      a.start();
+      setActive(f);
+    };
+    fireReminderRef.current = fireReminder;
+
     const tick = () => {
       const now = Date.now();
       const fires = buildFires();
+      firesIndexRef.current = new Map(fires.map((f) => [f.key, f]));
       for (const f of fires) {
         const t = f.when.getTime();
         // Fire if in the past 90s window and not yet fired this session
@@ -180,28 +309,6 @@ export function Reminders() {
           fireReminder(f);
         }
       }
-    };
-
-    const fireReminder = (f: Fire) => {
-      // Browser notification
-      try {
-        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-          const n = new Notification(`⏰ ${f.title}`, {
-            body: `${f.meta} • ${f.when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`,
-            tag: f.key,
-            requireInteraction: true,
-          });
-          n.onclick = () => { window.focus(); n.close(); };
-        }
-      } catch { /* noop */ }
-      // Toast
-      toast(`⏰ ${f.title}`, { description: f.meta, duration: 10_000 });
-      // In-app modal + alarm
-      alarmRef.current?.stop();
-      const a = makeAlarm();
-      alarmRef.current = a;
-      a.start();
-      setActive(f);
     };
 
     tick(); // fire immediately on data change
@@ -217,6 +324,15 @@ export function Reminders() {
 
   const markDone = () => {
     active?.onDone?.();
+    dismiss();
+  };
+
+  const snooze = () => {
+    if (active) {
+      const f = active;
+      window.setTimeout(() => fireReminderRef.current?.(f), 5 * 60 * 1000);
+      toast.info(`Snoozed "${f.title}" for 5 minutes`);
+    }
     dismiss();
   };
 
@@ -241,14 +357,21 @@ export function Reminders() {
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <BellRing className="h-4 w-4" />
             {active.when.toLocaleString(undefined, {
-              weekday: "short", day: "numeric", month: "short",
-              hour: "numeric", minute: "2-digit",
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              hour: "numeric",
+              minute: "2-digit",
             })}
           </p>
         </div>
         <div className="flex gap-2 border-t border-border p-4">
-          <Button variant="outline" className="flex-1" onClick={dismiss}>Snooze / Close</Button>
-          <Button className="flex-1" onClick={markDone}>Mark done</Button>
+          <Button variant="outline" className="flex-1" onClick={snooze}>
+            Snooze 5m
+          </Button>
+          <Button className="flex-1" onClick={markDone}>
+            Mark done
+          </Button>
         </div>
       </div>
     </div>

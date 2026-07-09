@@ -211,14 +211,21 @@ function TasksPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Total" value={tasks.length} icon={<CheckSquare className="h-4 w-4" />} />
+     <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <StatCard
+          compact
+          label="Total"
+          value={tasks.length}
+          icon={<CheckSquare className="h-4 w-4" />}
+        />
+        <StatCard
+          compact
           label="Pending"
           value={tasks.filter((t) => !t.done).length}
           icon={<Clock className="h-4 w-4" />}
         />
         <StatCard
+          compact
           label="Completed"
           value={tasks.filter((t) => t.done).length}
           icon={<CheckSquare className="h-4 w-4" />}

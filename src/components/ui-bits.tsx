@@ -36,6 +36,7 @@ export function StatCard({
   icon,
   accent,
   className,
+  compact,
 }: {
   label: string;
   value: ReactNode;
@@ -43,6 +44,7 @@ export function StatCard({
   icon?: ReactNode;
   accent?: "primary" | "accent" | "success" | "warning";
   className?: string;
+  compact?: boolean;
 }) {
   const accentClass = {
     primary: "text-primary",
@@ -51,13 +53,43 @@ export function StatCard({
     warning: "text-[color:var(--warning)]",
   }[accent ?? "primary"];
   return (
-    <div className={cn("glass relative overflow-hidden rounded-2xl p-5", className)}>
+    <div
+      className={cn(
+        "glass relative overflow-hidden rounded-2xl",
+        compact ? "p-2.5 sm:p-5" : "p-5",
+        className,
+      )}
+    >
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
       <div className="flex items-start justify-between">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-        {icon && <div className={cn("rounded-lg bg-secondary/60 p-2", accentClass)}>{icon}</div>}
+        <p
+          className={cn(
+            "uppercase tracking-wider text-muted-foreground",
+            compact ? "text-[9px] sm:text-xs" : "text-xs",
+          )}
+        >
+          {label}
+        </p>
+        {icon && (
+          <div
+            className={cn(
+              "rounded-lg bg-secondary/60",
+              compact ? "hidden p-2 sm:block" : "p-2",
+              accentClass,
+            )}
+          >
+            {icon}
+          </div>
+        )}
       </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
+      <p
+        className={cn(
+          "font-semibold tracking-tight",
+          compact ? "mt-1.5 text-xl sm:mt-3 sm:text-3xl" : "mt-3 text-3xl",
+        )}
+      >
+        {value}
+      </p>
       {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );

@@ -24,13 +24,13 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/calendar", label: "Calendar", icon: CalendarIcon },
-  { to: "/report", label: "Report", icon: BarChart3 },
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
-  { to: "/habits", label: "Habits", icon: Flame },
   { to: "/work", label: "Work & Projects", icon: Briefcase },
   { to: "/tasks", label: "To Do List", icon: CheckSquare },
+  { to: "/habits", label: "Habits", icon: Flame },
   { to: "/vision-board", label: "Vision Board", icon: Wand2 },
+  { to: "/report", label: "Report", icon: BarChart3 },
+  { to: "/calendar", label: "Calendar", icon: CalendarIcon },
   { to: "/categories", label: "Categories", icon: Tags },
   { to: "/negative-habits", label: "Avoid List", icon: Ban },
 ] as const;
@@ -141,8 +141,8 @@ const bottomNav = [
   { to: "/routine", label: "Routine", icon: ListChecks },
   { to: "/work", label: "Work", icon: Briefcase },
   { to: "/tasks", label: "To Do", icon: CheckSquare },
+  { to: "/vision-board", label: "Vision", icon: Wand2 },
   { to: "/report", label: "Report", icon: BarChart3 },
-  { to: "/habits", label: "Habits", icon: Flame },
 ] as const;
 
 function BottomNav({ pathname }: { pathname: string }) {

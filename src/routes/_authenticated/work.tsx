@@ -78,14 +78,56 @@ function iconFor(depth: number) {
   return m;
 }
 
-/**
- * A recurring node is "done" only for today's date (resets automatically each
- * day once done_on stops matching today). A one-time node just stays done
- * until it's explicitly toggled back — it is never auto-deleted, so it can
- * show up in the Completed Works view and be reverted to Pending.
- */
+const PRIORITY_META = {
+  low: { label: "Low", className: "bg-sky-500/15 text-sky-600 dark:text-sky-400" },
+  medium: { label: "Medium", className: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
+  high: { label: "High", className: "bg-red-500/15 text-red-600 dark:text-red-400" },
+} as const;
+
+function PriorityBadge({ priority }: { priority: "low" | "medium" | "high" }) {
+  const meta = PRIORITY_META[priority];
+  return (
+    <span
+      className={cn(
+        "rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+        meta.className,
+      )}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+function PriorityPicker({
+  value,
+  onChange,
+}: {
+  value: "low" | "medium" | "high";
+  onChange: (v: "low" | "medium" | "high") => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      {(["low", "medium", "high"] as const).map((p) => (
+        <Button
+          key={p}
+          type="button"
+          size="sm"
+          variant={value === p ? "default" : "outline"}
+          onClick={() => onChange(p)}
+          className="flex-1"
+        >
+          {PRIORITY_META[p].label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** A node counts as "done" only for today's date — it resets automatically
+ * once done_on stops matching today. (One-time tasks never actually reach
+ * this state for long: marking one done deletes it outright — see
+ * toggleDone below — so this only really matters for recurring items.) */
 function isNodeDone(n: WorkNode, today: string) {
-  if (n.task_kind === "one_time") return n.done;
   return n.done && n.done_on === today;
 }
 
@@ -126,6 +168,7 @@ function WorkPage() {
   );
   const [addTitle, setAddTitle] = useState("");
   const [addKind, setAddKind] = useState<"recurring" | "one_time">("recurring");
+  const [addPriority, setAddPriority] = useState<"low" | "medium" | "high">("medium");
   const [addDueDate, setAddDueDate] = useState("");
   const [addDueTime, setAddDueTime] = useState("");
   const COLLAPSE_KEY = "lifeos:work:collapsed";
@@ -197,6 +240,7 @@ function WorkPage() {
         node_type: type,
         sort_order: siblings.length,
         task_kind: canBeOneTime ? addKind : "recurring",
+        priority: addPriority,
         due_date: canBeOneTime && addDueDate ? addDueDate : null,
         due_time: canBeOneTime && addDueTime ? `${addDueTime}:00` : null,
       },
@@ -204,6 +248,7 @@ function WorkPage() {
         onSuccess: () => {
           setAddTitle("");
           setAddKind("recurring");
+          setAddPriority("medium");
           setAddDueDate("");
           setAddDueTime("");
           setAddingUnder(null);
@@ -215,6 +260,12 @@ function WorkPage() {
 
   const toggleDone = (n: WorkNode) => {
     const currentlyDone = isNodeDone(n, today);
+    // One-time item: marking it done removes it (and its children) entirely —
+    // it should not linger struck-through like a recurring item.
+    if (!currentlyDone && n.task_kind === "one_time") {
+      del.mutate(n.id, { onSuccess: () => toast.success("Completed & removed") });
+      return;
+    }
     update.mutate({
       id: n.id,
       done: !currentlyDone,
@@ -255,7 +306,7 @@ function WorkPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader title={headerTitle} subtitle={headerSubtitle} />
         <div className="flex flex-wrap gap-2">
-          {view === "tree" ? (
+          {view === "tree" && (
             <>
               <Button
                 variant="outline"
@@ -283,15 +334,64 @@ function WorkPage() {
                 <RotateCcw className="h-4 w-4" /> Reset{doneCount > 0 ? ` (${doneCount})` : ""}
               </Button>
             </>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => changeView("tree")}
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
+          )}
+          {view === "pending" && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => changeView("tree")}
+              >
+                <ArrowLeft className="h-4 w-4" /> Back
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => changeView("completed")}
+              >
+                <CheckCircle2 className="h-4 w-4" /> Completed
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={resetEverything}
+                title="Move all completed items back to pending"
+              >
+                <RotateCcw className="h-4 w-4" /> Reset{doneCount > 0 ? ` (${doneCount})` : ""}
+              </Button>
+            </>
+          )}
+          {view === "completed" && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => changeView("tree")}
+              >
+                <ArrowLeft className="h-4 w-4" /> Back
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => changeView("pending")}
+              >
+                <Eye className="h-4 w-4" /> Pending
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={resetEverything}
+                title="Move all completed items back to pending"
+              >
+                <RotateCcw className="h-4 w-4" /> Reset{doneCount > 0 ? ` (${doneCount})` : ""}
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -369,6 +469,10 @@ function WorkPage() {
               placeholder="e.g. Project Development"
             />
           </div>
+          <div className="space-y-2 pt-2">
+            <Label>Priority</Label>
+            <PriorityPicker value={addPriority} onChange={setAddPriority} />
+          </div>
           {addingUnder && addingUnder.depth >= 2 && (
             <div className="space-y-2 pt-2">
               <Label>Type</Label>
@@ -395,7 +499,7 @@ function WorkPage() {
               <p className="text-xs text-muted-foreground">
                 {addKind === "recurring"
                   ? "Resets to uncompleted each day."
-                  : "Stays completed (visible under Completed Works) until you toggle it back."}
+                  : "Removed automatically once marked done."}
               </p>
               <div className="grid grid-cols-2 gap-2 pt-2">
                 <div className="space-y-1">
@@ -458,6 +562,7 @@ function EditForm({
     title: string;
     notes: string | null;
     task_kind: "recurring" | "one_time";
+    priority: "low" | "medium" | "high";
     due_date: string | null;
     due_time: string | null;
   }) => void;
@@ -465,6 +570,7 @@ function EditForm({
   const [title, setTitle] = useState(node.title);
   const [notes, setNotes] = useState(node.notes ?? "");
   const [kind, setKind] = useState<"recurring" | "one_time">(node.task_kind ?? "recurring");
+  const [priority, setPriority] = useState<"low" | "medium" | "high">(node.priority ?? "medium");
   const [dueDate, setDueDate] = useState(node.due_date ?? "");
   const [dueTime, setDueTime] = useState(node.due_time ? node.due_time.slice(0, 5) : "");
   return (
@@ -481,6 +587,10 @@ function EditForm({
           rows={4}
           placeholder="Add any details, amounts, statuses…"
         />
+      </div>
+      <div className="space-y-1">
+        <Label>Priority</Label>
+        <PriorityPicker value={priority} onChange={setPriority} />
       </div>
       <div className="space-y-1">
         <Label>Type</Label>
@@ -525,6 +635,7 @@ function EditForm({
               title: title.trim() || node.title,
               notes: notes.trim() || null,
               task_kind: kind,
+              priority,
               due_date: dueDate || null,
               due_time: dueTime ? `${dueTime}:00` : null,
             })
@@ -718,6 +829,7 @@ function NodeRow({
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               {meta.label}
             </span>
+            <PriorityBadge priority={node.priority ?? "medium"} />
             {node.task_kind === "one_time" && (
               <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
                 One-time
@@ -853,7 +965,8 @@ function GroupedLines({
                           {n.title}
                         </span>
                       </span>
-                    ))}
+                    ))}{" "}
+                    <PriorityBadge priority={leaf.priority ?? "medium"} />
                   </span>
                 </label>
               ))}
