@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedWorkRouteImport } from './routes/_authenticated/work'
+import { Route as AuthenticatedVisionBoardRouteImport } from './routes/_authenticated/vision-board'
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedRoutineRouteImport } from './routes/_authenticated/routine'
 import { Route as AuthenticatedReportRouteImport } from './routes/_authenticated/report'
@@ -41,6 +42,12 @@ const AuthenticatedWorkRoute = AuthenticatedWorkRouteImport.update({
   path: '/work',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedVisionBoardRoute =
+  AuthenticatedVisionBoardRouteImport.update({
+    id: '/vision-board',
+    path: '/vision-board',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
@@ -94,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
   '/tasks': typeof AuthenticatedTasksRoute
+  '/vision-board': typeof AuthenticatedVisionBoardRoute
   '/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRoutesByTo {
@@ -107,6 +115,7 @@ export interface FileRoutesByTo {
   '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
   '/tasks': typeof AuthenticatedTasksRoute
+  '/vision-board': typeof AuthenticatedVisionBoardRoute
   '/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRoutesById {
@@ -122,6 +131,7 @@ export interface FileRoutesById {
   '/_authenticated/report': typeof AuthenticatedReportRoute
   '/_authenticated/routine': typeof AuthenticatedRoutineRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
+  '/_authenticated/vision-board': typeof AuthenticatedVisionBoardRoute
   '/_authenticated/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRouteTypes {
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/routine'
     | '/tasks'
+    | '/vision-board'
     | '/work'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/routine'
     | '/tasks'
+    | '/vision-board'
     | '/work'
   id:
     | '__root__'
@@ -164,6 +176,7 @@ export interface FileRouteTypes {
     | '/_authenticated/report'
     | '/_authenticated/routine'
     | '/_authenticated/tasks'
+    | '/_authenticated/vision-board'
     | '/_authenticated/work'
   fileRoutesById: FileRoutesById
 }
@@ -201,6 +214,13 @@ declare module '@tanstack/react-router' {
       path: '/work'
       fullPath: '/work'
       preLoaderRoute: typeof AuthenticatedWorkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/vision-board': {
+      id: '/_authenticated/vision-board'
+      path: '/vision-board'
+      fullPath: '/vision-board'
+      preLoaderRoute: typeof AuthenticatedVisionBoardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/tasks': {
@@ -271,6 +291,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReportRoute: typeof AuthenticatedReportRoute
   AuthenticatedRoutineRoute: typeof AuthenticatedRoutineRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
+  AuthenticatedVisionBoardRoute: typeof AuthenticatedVisionBoardRoute
   AuthenticatedWorkRoute: typeof AuthenticatedWorkRoute
 }
 
@@ -283,6 +304,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReportRoute: AuthenticatedReportRoute,
   AuthenticatedRoutineRoute: AuthenticatedRoutineRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
+  AuthenticatedVisionBoardRoute: AuthenticatedVisionBoardRoute,
   AuthenticatedWorkRoute: AuthenticatedWorkRoute,
 }
 

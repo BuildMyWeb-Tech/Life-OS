@@ -13,7 +13,7 @@ import {
   BarChart3,
   Briefcase,
   CheckSquare,
-
+  Wand2,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,6 +30,7 @@ const nav = [
   { to: "/habits", label: "Habits", icon: Flame },
   { to: "/work", label: "Work & Projects", icon: Briefcase },
   { to: "/tasks", label: "To Do List", icon: CheckSquare },
+  { to: "/vision-board", label: "Vision Board", icon: Wand2 },
   { to: "/categories", label: "Categories", icon: Tags },
   { to: "/negative-habits", label: "Avoid List", icon: Ban },
 ] as const;

@@ -10,7 +10,10 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   ListChecks,
+  Search,
+  X,
 } from "lucide-react";
 import { PageHeader, StatCard, RowActions } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
@@ -18,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { todayKey, prettyDate } from "@/lib/storage";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +51,38 @@ export const Route = createFileRoute("/_authenticated/tasks")({
 });
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+type TaskFilter = "all" | "completed" | "pending";
+const FILTER_KEY = "lifeos:tasks:filter";
+
+function loadTaskFilter(): TaskFilter {
+  if (typeof window === "undefined") return "all";
+  try {
+    const v = localStorage.getItem(FILTER_KEY);
+    if (v === "all" || v === "completed" || v === "pending") return v;
+  } catch {
+    /* ignore */
+  }
+  return "all";
+}
+
+function saveTaskFilter(v: TaskFilter) {
+  try {
+    localStorage.setItem(FILTER_KEY, v);
+  } catch {
+    /* ignore */
+  }
+}
+
+function shiftDate(key: string, delta: number) {
+  const [y, m, d] = key.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
 
 function formatDue(task: Task): string | null {
   if (!task.due_date && !task.due_time) return null;
@@ -85,17 +122,41 @@ function TasksPage() {
   const [dueTime, setDueTime] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const { pending, done } = useMemo(() => {
-    const p: Task[] = [];
-    const d: Task[] = [];
-    for (const t of tasks) (t.done ? d : p).push(t);
-    return { pending: p, done: d };
-  }, [tasks]);
+  const [filter, setFilter] = useState<TaskFilter>(loadTaskFilter);
+  const [dateFilter, setDateFilter] = useState<string | null>(null); // null = All Dates
+  const [search, setSearch] = useState("");
+
+  const changeFilter = (f: TaskFilter) => {
+    setFilter(f);
+    saveTaskFilter(f);
+  };
+
+  // Date + search apply first (tab counts are computed against this subset,
+  // same pattern as the Daily Routine tabs).
+  const dateAndSearchFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tasks.filter((t) => {
+      if (dateFilter && t.due_date !== dateFilter) return false;
+      if (q && !t.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [tasks, dateFilter, search]);
+
+  const pendingCount = dateAndSearchFiltered.filter((t) => !t.done).length;
+  const doneCount = dateAndSearchFiltered.filter((t) => t.done).length;
+
+  const visible = useMemo(() => {
+    return dateAndSearchFiltered.filter((t) => {
+      if (filter === "completed") return t.done;
+      if (filter === "pending") return !t.done;
+      return true;
+    });
+  }, [dateAndSearchFiltered, filter]);
 
   const resetForm = () => {
     setEditing(null);
     setTitle("");
-    setDueDate("");
+    setDueDate(dateFilter ?? "");
     setDueTime("");
   };
 
@@ -152,27 +213,98 @@ function TasksPage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Total" value={tasks.length} icon={<CheckSquare className="h-4 w-4" />} />
-        <StatCard label="Pending" value={pending.length} icon={<Clock className="h-4 w-4" />} />
+        <StatCard
+          label="Pending"
+          value={tasks.filter((t) => !t.done).length}
+          icon={<Clock className="h-4 w-4" />}
+        />
         <StatCard
           label="Completed"
-          value={done.length}
+          value={tasks.filter((t) => t.done).length}
           icon={<CheckSquare className="h-4 w-4" />}
         />
       </div>
 
+      {/* Date navigator — mirrors the Daily Routine page */}
+      <div className="glass flex items-center justify-between gap-2 rounded-2xl p-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setDateFilter((d) => shiftDate(d ?? todayKey(), -1))}
+          aria-label="Previous day"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex flex-col items-center text-center">
+          <span className="text-sm font-semibold">
+            {dateFilter ? prettyDate(dateFilter) : "All Dates"}
+          </span>
+          {dateFilter ? (
+            <button
+              onClick={() => setDateFilter(null)}
+              className="text-xs text-primary hover:underline"
+            >
+              Clear date filter
+            </button>
+          ) : (
+            <button
+              onClick={() => setDateFilter(todayKey())}
+              className="text-xs text-primary hover:underline"
+            >
+              Jump to today
+            </button>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setDateFilter((d) => shiftDate(d ?? todayKey(), 1))}
+          aria-label="Next day"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search tasks…"
+          className="pl-9 pr-9"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      <Tabs value={filter} onValueChange={(v) => changeFilter(v as TaskFilter)}>
+        <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+          <TabsTrigger value="all">All ({dateAndSearchFiltered.length})</TabsTrigger>
+          <TabsTrigger value="completed">Completed ({doneCount})</TabsTrigger>
+          <TabsTrigger value="pending">Pending ({pendingCount})</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Pending ({pending.length})
-        </h2>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : pending.length === 0 ? (
+        ) : visible.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border bg-card/40 p-6 text-sm text-muted-foreground">
-            No pending tasks. Add one to get started.
+            No {filter === "all" ? "tasks" : filter} match
+            {dateFilter ? ` ${prettyDate(dateFilter)}` : ""}
+            {search ? ` "${search}"` : ""}.
           </p>
         ) : (
           <ul className="space-y-2">
-            {pending.map((t) => (
+            {visible.map((t) => (
               <TaskRow
                 key={t.id}
                 task={t}
@@ -187,28 +319,6 @@ function TasksPage() {
           </ul>
         )}
       </section>
-
-      {done.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Completed ({done.length})
-          </h2>
-          <ul className="space-y-2">
-            {done.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                subtasks={subtaskMap.get(t.id) ?? []}
-                expanded={expanded.has(t.id)}
-                onToggleExpand={() => toggleExpanded(t.id)}
-                onToggle={(done) => updateTask.mutate({ id: t.id, done })}
-                onEdit={() => openEdit(t)}
-                onDelete={() => deleteTask.mutate(t.id)}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
 
       <Dialog
         open={open}
