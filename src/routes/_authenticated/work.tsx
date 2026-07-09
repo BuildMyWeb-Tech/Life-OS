@@ -87,9 +87,13 @@ function iconFor(depth: number) {
 }
 
 const PRIORITY_META = {
-  low: { label: "Low", textClass: "text-sky-600 dark:text-sky-400" },
-  medium: { label: "Medium", textClass: "text-amber-600 dark:text-amber-400" },
-  high: { label: "High", textClass: "text-red-600 dark:text-red-400" },
+  low: { label: "Low", textClass: "text-sky-600 dark:text-sky-400", dotClass: "bg-sky-500" },
+  medium: {
+    label: "Medium",
+    textClass: "text-amber-700/70 dark:text-amber-300/60",
+    dotClass: "bg-amber-500/50",
+  },
+  high: { label: "High", textClass: "text-red-600 dark:text-red-400", dotClass: "bg-red-500" },
 } as const;
 
 type Priority = "low" | "medium" | "high" | null;
@@ -143,16 +147,17 @@ function QuickPriorityMenu({
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
+          aria-label={
+            value ? `Priority: ${PRIORITY_META[value].label}. Change priority` : "Set priority"
+          }
+          title={value ? `Priority: ${PRIORITY_META[value].label}` : "Set priority"}
           className={cn(
-            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors",
+            "shrink-0 h-2.5 w-2.5 rounded-full border transition-colors",
             value
-              ? cn(PRIORITY_META[value].textClass, "border-current/40")
-              : "border-border text-muted-foreground hover:text-foreground",
+              ? cn(PRIORITY_META[value].dotClass, "border-transparent")
+              : "border-muted-foreground/40 hover:border-foreground",
           )}
-          title="Set priority"
-        >
-          {value ? PRIORITY_META[value].label : "Priority"}
-        </button>
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem onClick={() => onChange(null)}>None</DropdownMenuItem>
@@ -221,24 +226,6 @@ function loadView(): ViewMode {
 function saveView(v: ViewMode) {
   try {
     localStorage.setItem(VIEW_KEY, v);
-  } catch {
-    /* ignore */
-  }
-}
-
-const HELD_KEY = "lifeos:work:held";
-function loadHeld(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = localStorage.getItem(HELD_KEY);
-    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-function saveHeld(s: Set<string>) {
-  try {
-    localStorage.setItem(HELD_KEY, JSON.stringify([...s]));
   } catch {
     /* ignore */
   }
@@ -376,6 +363,10 @@ function WorkPage() {
     update.mutate({ id: n.id, priority: p });
   };
 
+  const toggleHold = (n: WorkNode) => {
+    update.mutate({ id: n.id, held: !n.held });
+  };
+
   const doneCount = nodes.filter((n) => isNodeDone(n, today)).length;
   const pendingCount = useMemo(() => buildPendingLines(byParent, today).length, [byParent, today]);
   const completedCount = useMemo(
@@ -510,6 +501,7 @@ function WorkPage() {
           today={today}
           onToggleDone={toggleDone}
           onSetPriority={setPriority}
+          onToggleHold={toggleHold}
         />
       )}
 
@@ -981,11 +973,11 @@ function NodeRow({
               {meta.label}
             </span>
             {node.task_kind === "one_time" && (
-              <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                 One-time
               </span>
             )}
-            <QuickPriorityMenu value={node.priority} onChange={(p) => onSetPriority(p)} />
+            {/* <QuickPriorityMenu value={node.priority} onChange={(p) => onSetPriority(p)} /> */}
           </div>
           {dueLine && (
             <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -1091,15 +1083,13 @@ function GroupedLines({
   checked,
   onToggle,
   onSetPriority,
-  heldIds,
   onToggleHold,
 }: {
   lines: FlatLine[];
   checked: boolean;
   onToggle: (n: WorkNode) => void;
   onSetPriority?: (n: WorkNode, p: Priority) => void;
-  heldIds?: Set<string>;
-  onToggleHold?: (id: string) => void;
+  onToggleHold?: (n: WorkNode) => void;
 }) {
   const groups = new Map<string, FlatLine[]>();
   for (const l of lines) {
@@ -1121,16 +1111,13 @@ function GroupedLines({
             </div>
             <div className="space-y-1.5">
               {items.map(({ path, leaf }) => {
-                const isHeld = heldIds?.has(leaf.id) ?? false;
+                const isHeld = leaf.held;
                 const dueLine = formatDueLine(leaf);
                 return (
                   <div
                     key={path.map((p) => p.id).join(">")}
                     onClick={() => onToggle(leaf)}
-                    className={cn(
-                      "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30",
-                      isHeld && "opacity-50",
-                    )}
+                    className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30"
                   >
                     <Checkbox
                       checked={checked}
@@ -1139,39 +1126,50 @@ function GroupedLines({
                       className="mt-0.5 shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <span className="break-words leading-snug">
-                        {path.map((n, i) => (
-                          <span key={n.id}>
-                            {i > 0 && <span className="mx-1.5 text-muted-foreground">›</span>}
-                            <span
-                              className={cn(
-                                i === 0 && "font-medium text-primary",
-                                i === path.length - 1 && "font-medium text-foreground",
-                                i > 0 && i < path.length - 1 && "text-muted-foreground",
-                                i === path.length - 1 && !checked && priorityTextClass(n.priority),
-                                checked &&
-                                  i === path.length - 1 &&
-                                  "line-through text-muted-foreground",
-                              )}
-                            >
-                              {n.title}
-                            </span>
+                      {isHeld ? (
+                        <span
+                          className="inline-block h-3.5 w-40 max-w-full rounded bg-muted-foreground/15"
+                          aria-label="Hidden"
+                        />
+                      ) : (
+                        <>
+                          <span className="break-words leading-snug">
+                            {path.map((n, i) => (
+                              <span key={n.id}>
+                                {i > 0 && <span className="mx-1.5 text-muted-foreground">›</span>}
+                                <span
+                                  className={cn(
+                                    i === 0 && "font-medium text-primary",
+                                    i === path.length - 1 && "font-medium text-foreground",
+                                    i > 0 && i < path.length - 1 && "text-muted-foreground",
+                                    i === path.length - 1 &&
+                                      !checked &&
+                                      priorityTextClass(n.priority),
+                                    checked &&
+                                      i === path.length - 1 &&
+                                      "line-through text-muted-foreground",
+                                  )}
+                                >
+                                  {n.title}
+                                </span>
+                              </span>
+                            ))}
                           </span>
-                        ))}
-                      </span>
-                      {dueLine && (
-                        <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3 shrink-0" />
-                          {dueLine}
-                        </span>
+                          {dueLine && (
+                            <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3 shrink-0" />
+                              {dueLine}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
-                    {onSetPriority && (
+                    {/* {onSetPriority && !isHeld && (
                       <QuickPriorityMenu
                         value={leaf.priority}
                         onChange={(p) => onSetPriority(leaf, p)}
                       />
-                    )}
+                    )} */}
                     {onToggleHold && (
                       <Button
                         type="button"
@@ -1179,7 +1177,7 @@ function GroupedLines({
                         variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onToggleHold(leaf.id);
+                          onToggleHold(leaf);
                         }}
                         className="shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
                       >
@@ -1210,75 +1208,42 @@ function PendingList({
   today,
   onToggleDone,
   onSetPriority,
+  onToggleHold,
 }: {
   byParent: Map<string | null, WorkNode[]>;
   today: string;
   onToggleDone: (n: WorkNode) => void;
   onSetPriority: (n: WorkNode, p: Priority) => void;
+  onToggleHold: (n: WorkNode) => void;
 }) {
   const lines = useMemo(() => buildPendingLines(byParent, today), [byParent, today]);
-  const [held, setHeld] = useState<Set<string>>(loadHeld);
-  const [showHeld, setShowHeld] = useState(false);
-
-  const toggleHold = (id: string) => {
-    setHeld((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      saveHeld(n);
-      return n;
-    });
-  };
-
-  const heldCount = lines.filter((l) => held.has(l.leaf.id)).length;
-  const visibleLines = showHeld ? lines : lines.filter((l) => !held.has(l.leaf.id));
+  const heldCount = useMemo(() => lines.filter((l) => l.leaf.held).length, [lines]);
 
   const { data: tasks = [] } = useTasks();
   const updateTask = useUpdateTask();
   const pendingTasks = useMemo(() => tasks.filter((t) => !t.done), [tasks]);
 
-  const nothingPending = visibleLines.length === 0 && pendingTasks.length === 0;
+  const nothingPending = lines.length === 0 && pendingTasks.length === 0;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs text-muted-foreground">
-          {visibleLines.length} pending work {visibleLines.length === 1 ? "item" : "items"}
-          {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
-          {heldCount > 0 && !showHeld && ` · ${heldCount} held`}
-        </div>
-        {heldCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setShowHeld((v) => !v)}
-          >
-            {showHeld ? (
-              <>
-                <Eye className="h-3.5 w-3.5" /> Hide held — back to normal
-              </>
-            ) : (
-              <>
-                <EyeOff className="h-3.5 w-3.5" /> Show held ({heldCount})
-              </>
-            )}
-          </Button>
-        )}
+      <div className="text-xs text-muted-foreground">
+        {lines.length} pending work {lines.length === 1 ? "item" : "items"}
+        {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
+        {heldCount > 0 && ` · ${heldCount} on hold (tap Show to reveal)`}
       </div>
 
       {nothingPending ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          🎉 Nothing pending. All items completed (or everything left is on hold).
+          🎉 Nothing pending. All items completed.
         </div>
       ) : (
         <GroupedLines
-          lines={visibleLines}
+          lines={lines}
           checked={false}
           onToggle={onToggleDone}
           onSetPriority={onSetPriority}
-          heldIds={held}
-          onToggleHold={toggleHold}
+          onToggleHold={onToggleHold}
         />
       )}
 

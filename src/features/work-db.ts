@@ -14,6 +14,7 @@ export type WorkNode = {
   done_on: string | null;
   task_kind: "recurring" | "one_time";
   priority: "low" | "medium" | "high" | null;
+  held: boolean;
   due_date: string | null;
   due_time: string | null;
   created_at: string;
@@ -90,6 +91,7 @@ export function useUpdateWorkNode() {
       node_type?: string;
       task_kind?: "recurring" | "one_time";
       priority?: "low" | "medium" | "high" | null;
+      held?: boolean;
       due_date?: string | null;
       due_time?: string | null;
     }) => {
