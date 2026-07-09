@@ -13,7 +13,7 @@ export type WorkNode = {
   done: boolean;
   done_on: string | null;
   task_kind: "recurring" | "one_time";
-  priority: "low" | "medium" | "high";
+  priority: "low" | "medium" | "high" | null;
   due_date: string | null;
   due_time: string | null;
   created_at: string;
@@ -46,7 +46,7 @@ export function useCreateWorkNode() {
       node_type?: string;
       sort_order?: number;
       task_kind?: "recurring" | "one_time";
-      priority?: "low" | "medium" | "high";
+      priority?: "low" | "medium" | "high" | null;
       due_date?: string | null;
       due_time?: string | null;
     }) => {
@@ -66,7 +66,7 @@ export function useCreateWorkNode() {
           due_date: input.due_date ?? null,
           due_time: input.due_time ?? null,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...({ priority: input.priority ?? "medium" } as any),
+          ...({ priority: input.priority ?? null } as any),
         })
         .select()
         .single();
@@ -89,7 +89,7 @@ export function useUpdateWorkNode() {
       done_on?: string | null;
       node_type?: string;
       task_kind?: "recurring" | "one_time";
-      priority?: "low" | "medium" | "high";
+      priority?: "low" | "medium" | "high" | null;
       due_date?: string | null;
       due_time?: string | null;
     }) => {

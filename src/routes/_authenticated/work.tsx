@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -29,6 +29,8 @@ import {
   ListChecks,
   CheckSquare,
   Eye,
+  EyeOff,
+  Clock,
   CheckCircle2,
   ArrowLeft,
   RotateCcw,
@@ -36,6 +38,12 @@ import {
 
 import { toast } from "sonner";
 import { PageHeader, RowActions } from "@/components/ui-bits";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,23 +88,30 @@ function iconFor(depth: number) {
 
 const PRIORITY_META = {
   low: { label: "Low", textClass: "text-sky-600 dark:text-sky-400" },
-  medium: { label: "Medium", textClass: "" },
+  medium: { label: "Medium", textClass: "text-amber-600 dark:text-amber-400" },
   high: { label: "High", textClass: "text-red-600 dark:text-red-400" },
 } as const;
 
-function priorityTextClass(priority: "low" | "medium" | "high") {
-  return PRIORITY_META[priority].textClass;
+type Priority = "low" | "medium" | "high" | null;
+
+/** No priority set → default/foreground text color ("white"). Any of the
+ * three explicit levels gets its own color, including Medium. */
+function priorityTextClass(priority: Priority) {
+  return priority ? PRIORITY_META[priority].textClass : "";
 }
 
-function PriorityPicker({
-  value,
-  onChange,
-}: {
-  value: "low" | "medium" | "high";
-  onChange: (v: "low" | "medium" | "high") => void;
-}) {
+function PriorityPicker({ value, onChange }: { value: Priority; onChange: (v: Priority) => void }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
+      <Button
+        type="button"
+        size="sm"
+        variant={value === null ? "default" : "outline"}
+        onClick={() => onChange(null)}
+        className="flex-1"
+      >
+        None
+      </Button>
       {(["low", "medium", "high"] as const).map((p) => (
         <Button
           key={p}
@@ -111,6 +126,74 @@ function PriorityPicker({
       ))}
     </div>
   );
+}
+
+/** A small always-visible control to change priority in one click/tap,
+ * without opening the full Edit dialog. */
+function QuickPriorityMenu({
+  value,
+  onChange,
+}: {
+  value: Priority;
+  onChange: (v: Priority) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors",
+            value
+              ? cn(PRIORITY_META[value].textClass, "border-current/40")
+              : "border-border text-muted-foreground hover:text-foreground",
+          )}
+          title="Set priority"
+        >
+          {value ? PRIORITY_META[value].label : "Priority"}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuItem onClick={() => onChange(null)}>None</DropdownMenuItem>
+        {(["low", "medium", "high"] as const).map((p) => (
+          <DropdownMenuItem
+            key={p}
+            onClick={() => onChange(p)}
+            className={PRIORITY_META[p].textClass}
+          >
+            {PRIORITY_META[p].label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** "Thu, 17 Jul 2026 · 4:30 PM" style line for a node's due date/time, or
+ * null if neither is set. */
+function formatDueLine(n: { due_date: string | null; due_time: string | null }): string | null {
+  if (!n.due_date && !n.due_time) return null;
+  const parts: string[] = [];
+  if (n.due_date) {
+    const d = new Date(n.due_date + "T00:00:00");
+    parts.push(
+      `${WEEKDAYS[d.getDay()]}, ${d.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })}`,
+    );
+  }
+  if (n.due_time) {
+    const [h, m] = n.due_time.split(":");
+    const dt = new Date();
+    dt.setHours(Number(h), Number(m), 0, 0);
+    parts.push(dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }));
+  }
+  return parts.join(" · ");
 }
 
 /** A node counts as "done" only for today's date — it resets automatically
@@ -143,6 +226,24 @@ function saveView(v: ViewMode) {
   }
 }
 
+const HELD_KEY = "lifeos:work:held";
+function loadHeld(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(HELD_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+function saveHeld(s: Set<string>) {
+  try {
+    localStorage.setItem(HELD_KEY, JSON.stringify([...s]));
+  } catch {
+    /* ignore */
+  }
+}
+
 function WorkPage() {
   const { data: nodes = [] } = useWorkNodes();
   const create = useCreateWorkNode();
@@ -157,8 +258,9 @@ function WorkPage() {
     null,
   );
   const [addTitle, setAddTitle] = useState("");
+  const addTitleInputRef = useRef<HTMLInputElement>(null);
   const [addKind, setAddKind] = useState<"recurring" | "one_time">("recurring");
-  const [addPriority, setAddPriority] = useState<"low" | "medium" | "high">("medium");
+  const [addPriority, setAddPriority] = useState<Priority>(null);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [addDueDate, setAddDueDate] = useState("");
   const [addDueTime, setAddDueTime] = useState("");
@@ -217,7 +319,7 @@ function WorkPage() {
     );
   };
 
-  const submitAdd = () => {
+  const submitAdd = (keepOpen: boolean) => {
     const t = addTitle.trim();
     if (!t || !addingUnder) return;
     const parent = addingUnder.parent;
@@ -239,12 +341,17 @@ function WorkPage() {
         onSuccess: () => {
           setAddTitle("");
           setAddKind("recurring");
-          setAddPriority("medium");
+          setAddPriority(null);
           setShowPriorityPicker(false);
           setAddDueDate("");
           setAddDueTime("");
-          setAddingUnder(null);
-          toast.success("Added");
+          if (keepOpen) {
+            toast.success("Added — ready for the next one");
+            addTitleInputRef.current?.focus();
+          } else {
+            setAddingUnder(null);
+            toast.success("Added");
+          }
         },
       },
     );
@@ -263,6 +370,10 @@ function WorkPage() {
       done: !currentlyDone,
       done_on: !currentlyDone ? today : null,
     });
+  };
+
+  const setPriority = (n: WorkNode, p: Priority) => {
+    update.mutate({ id: n.id, priority: p });
   };
 
   const doneCount = nodes.filter((n) => isNodeDone(n, today)).length;
@@ -394,11 +505,21 @@ function WorkPage() {
       </div>
 
       {view === "pending" && (
-        <PendingList byParent={byParent} today={today} onToggleDone={toggleDone} />
+        <PendingList
+          byParent={byParent}
+          today={today}
+          onToggleDone={toggleDone}
+          onSetPriority={setPriority}
+        />
       )}
 
       {view === "completed" && (
-        <CompletedList byParent={byParent} today={today} onToggleDone={toggleDone} />
+        <CompletedList
+          byParent={byParent}
+          today={today}
+          onToggleDone={toggleDone}
+          onSetPriority={setPriority}
+        />
       )}
 
       {view === "tree" && (
@@ -437,6 +558,7 @@ function WorkPage() {
                 if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
               }}
               onToggleDone={toggleDone}
+              onSetPriority={setPriority}
               today={today}
               onReorderSiblings={(parent_id, ids) => {
                 const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
@@ -460,9 +582,10 @@ function WorkPage() {
             <Label>Title</Label>
             <Input
               autoFocus
+              ref={addTitleInputRef}
               value={addTitle}
               onChange={(e) => setAddTitle(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitAdd()}
+              onKeyDown={(e) => e.key === "Enter" && submitAdd(false)}
               placeholder="e.g. Project Development"
             />
           </div>
@@ -533,18 +656,21 @@ function WorkPage() {
               )}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-wrap gap-2">
             <Button
               variant="ghost"
               onClick={() => {
                 setAddingUnder(null);
-                setAddPriority("medium");
+                setAddPriority(null);
                 setShowPriorityPicker(false);
               }}
             >
               Cancel
             </Button>
-            <Button onClick={submitAdd}>Add</Button>
+            <Button variant="outline" onClick={() => submitAdd(true)}>
+              Save &amp; Add
+            </Button>
+            <Button onClick={() => submitAdd(false)}>Add</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -578,7 +704,7 @@ function EditForm({
     title: string;
     notes: string | null;
     task_kind: "recurring" | "one_time";
-    priority: "low" | "medium" | "high";
+    priority: Priority;
     due_date: string | null;
     due_time: string | null;
   }) => void;
@@ -586,7 +712,7 @@ function EditForm({
   const [title, setTitle] = useState(node.title);
   const [notes, setNotes] = useState(node.notes ?? "");
   const [kind, setKind] = useState<"recurring" | "one_time">(node.task_kind ?? "recurring");
-  const [priority, setPriority] = useState<"low" | "medium" | "high">(node.priority ?? "medium");
+  const [priority, setPriority] = useState<Priority>(node.priority ?? null);
   const [dueDate, setDueDate] = useState(node.due_date ?? "");
   const [dueTime, setDueTime] = useState(node.due_time ? node.due_time.slice(0, 5) : "");
   return (
@@ -674,6 +800,7 @@ function TreeLevel({
   onEdit,
   onDelete,
   onToggleDone,
+  onSetPriority,
   onReorderSiblings,
   today,
 }: {
@@ -686,6 +813,7 @@ function TreeLevel({
   onEdit: (n: WorkNode) => void;
   onDelete: (n: WorkNode) => void;
   onToggleDone: (n: WorkNode) => void;
+  onSetPriority: (n: WorkNode, p: Priority) => void;
   onReorderSiblings: (parent_id: string | null, ids: string[]) => void;
   today: string;
 }) {
@@ -731,6 +859,7 @@ function TreeLevel({
               onEdit={() => onEdit(n)}
               onDelete={() => onDelete(n)}
               onToggleDone={() => onToggleDone(n)}
+              onSetPriority={(p) => onSetPriority(n, p)}
               effectiveDone={isNodeDone(n, today)}
             >
               {!collapsed.has(n.id) && (
@@ -744,6 +873,7 @@ function TreeLevel({
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onToggleDone={onToggleDone}
+                  onSetPriority={onSetPriority}
                   onReorderSiblings={onReorderSiblings}
                   today={today}
                 />
@@ -766,6 +896,7 @@ function NodeRow({
   onEdit,
   onDelete,
   onToggleDone,
+  onSetPriority,
   effectiveDone,
   children,
 }: {
@@ -778,6 +909,7 @@ function NodeRow({
   onEdit: () => void;
   onDelete: () => void;
   onToggleDone: () => void;
+  onSetPriority: (p: Priority) => void;
   effectiveDone: boolean;
   children?: React.ReactNode;
 }) {
@@ -792,6 +924,7 @@ function NodeRow({
   const meta = iconFor(depth);
   const Icon = meta.icon;
   const nextMeta = iconFor(depth + 1);
+  const dueLine = formatDueLine(node);
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -832,14 +965,14 @@ function NodeRow({
         <Icon className={cn("mt-1 h-4 w-4 shrink-0", meta.color)} />
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p
               className={cn(
                 "break-words text-sm font-medium leading-snug",
                 depth === 0 && "text-base font-semibold",
                 effectiveDone
                   ? "text-muted-foreground line-through"
-                  : priorityTextClass(node.priority ?? "medium"),
+                  : priorityTextClass(node.priority),
               )}
             >
               {node.title}
@@ -852,7 +985,14 @@ function NodeRow({
                 One-time
               </span>
             )}
+            <QuickPriorityMenu value={node.priority} onChange={(p) => onSetPriority(p)} />
           </div>
+          {dueLine && (
+            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3 shrink-0" />
+              {dueLine}
+            </p>
+          )}
           {node.notes && (
             <p className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
               <StickyNote className="mt-0.5 h-3 w-3 shrink-0" />
@@ -861,23 +1001,42 @@ function NodeRow({
           )}
         </div>
 
-        <RowActions
-          className="opacity-100"
-          actions={[
-            {
-              label: `Add ${nextMeta.label}`,
-              icon: <Plus className="h-4 w-4" />,
-              onClick: onAddChild,
-            },
-            { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
-            {
-              label: "Delete",
-              icon: <Trash2 className="h-4 w-4" />,
-              onClick: onDelete,
-              destructive: true,
-            },
-          ]}
-        />
+        {/* Desktop/laptop: icons directly visible, no dropdown */}
+        <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onAddChild}
+            aria-label={`Add ${nextMeta.label}`}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Edit">
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={onDelete} aria-label="Delete">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+        {/* Mobile: collapse actions behind "•••" to save space */}
+        <div className="shrink-0 sm:hidden">
+          <RowActions
+            actions={[
+              {
+                label: `Add ${nextMeta.label}`,
+                icon: <Plus className="h-4 w-4" />,
+                onClick: onAddChild,
+              },
+              { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
+              {
+                label: "Delete",
+                icon: <Trash2 className="h-4 w-4" />,
+                onClick: onDelete,
+                destructive: true,
+              },
+            ]}
+          />
+        </div>
       </div>
 
       {hasChildren && collapsedOpen && <div className="mt-2">{children}</div>}
@@ -931,10 +1090,16 @@ function GroupedLines({
   lines,
   checked,
   onToggle,
+  onSetPriority,
+  heldIds,
+  onToggleHold,
 }: {
   lines: FlatLine[];
   checked: boolean;
   onToggle: (n: WorkNode) => void;
+  onSetPriority?: (n: WorkNode, p: Priority) => void;
+  heldIds?: Set<string>;
+  onToggleHold?: (id: string) => void;
 }) {
   const groups = new Map<string, FlatLine[]>();
   for (const l of lines) {
@@ -955,40 +1120,83 @@ function GroupedLines({
               <span className="text-xs text-muted-foreground">· {items.length}</span>
             </div>
             <div className="space-y-1.5">
-              {items.map(({ path, leaf }) => (
-                <label
-                  key={path.map((p) => p.id).join(">")}
-                  className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={() => onToggle(leaf)}
-                    className="mt-0.5 shrink-0"
-                  />
-                  <span className="min-w-0 flex-1 break-words leading-snug">
-                    {path.map((n, i) => (
-                      <span key={n.id}>
-                        {i > 0 && <span className="mx-1.5 text-muted-foreground">›</span>}
-                        <span
-                          className={cn(
-                            i === 0 && "font-medium text-primary",
-                            i === path.length - 1 && "font-medium text-foreground",
-                            i > 0 && i < path.length - 1 && "text-muted-foreground",
-                            i === path.length - 1 &&
-                              !checked &&
-                              priorityTextClass(n.priority ?? "medium"),
-                            checked &&
-                              i === path.length - 1 &&
-                              "line-through text-muted-foreground",
-                          )}
-                        >
-                          {n.title}
-                        </span>
+              {items.map(({ path, leaf }) => {
+                const isHeld = heldIds?.has(leaf.id) ?? false;
+                const dueLine = formatDueLine(leaf);
+                return (
+                  <div
+                    key={path.map((p) => p.id).join(">")}
+                    onClick={() => onToggle(leaf)}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30",
+                      isHeld && "opacity-50",
+                    )}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => onToggle(leaf)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-0.5 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <span className="break-words leading-snug">
+                        {path.map((n, i) => (
+                          <span key={n.id}>
+                            {i > 0 && <span className="mx-1.5 text-muted-foreground">›</span>}
+                            <span
+                              className={cn(
+                                i === 0 && "font-medium text-primary",
+                                i === path.length - 1 && "font-medium text-foreground",
+                                i > 0 && i < path.length - 1 && "text-muted-foreground",
+                                i === path.length - 1 && !checked && priorityTextClass(n.priority),
+                                checked &&
+                                  i === path.length - 1 &&
+                                  "line-through text-muted-foreground",
+                              )}
+                            >
+                              {n.title}
+                            </span>
+                          </span>
+                        ))}
                       </span>
-                    ))}
-                  </span>
-                </label>
-              ))}
+                      {dueLine && (
+                        <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3 shrink-0" />
+                          {dueLine}
+                        </span>
+                      )}
+                    </div>
+                    {onSetPriority && (
+                      <QuickPriorityMenu
+                        value={leaf.priority}
+                        onChange={(p) => onSetPriority(leaf, p)}
+                      />
+                    )}
+                    {onToggleHold && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleHold(leaf.id);
+                        }}
+                        className="shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {isHeld ? (
+                          <>
+                            <Eye className="h-3.5 w-3.5" /> Show
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="h-3.5 w-3.5" /> Hold
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -1001,34 +1209,78 @@ function PendingList({
   byParent,
   today,
   onToggleDone,
+  onSetPriority,
 }: {
   byParent: Map<string | null, WorkNode[]>;
   today: string;
   onToggleDone: (n: WorkNode) => void;
+  onSetPriority: (n: WorkNode, p: Priority) => void;
 }) {
   const lines = useMemo(() => buildPendingLines(byParent, today), [byParent, today]);
+  const [held, setHeld] = useState<Set<string>>(loadHeld);
+  const [showHeld, setShowHeld] = useState(false);
+
+  const toggleHold = (id: string) => {
+    setHeld((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      saveHeld(n);
+      return n;
+    });
+  };
+
+  const heldCount = lines.filter((l) => held.has(l.leaf.id)).length;
+  const visibleLines = showHeld ? lines : lines.filter((l) => !held.has(l.leaf.id));
 
   const { data: tasks = [] } = useTasks();
   const updateTask = useUpdateTask();
   const pendingTasks = useMemo(() => tasks.filter((t) => !t.done), [tasks]);
 
-  const nothingPending = lines.length === 0 && pendingTasks.length === 0;
-  if (nothingPending) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-        🎉 Nothing pending. All items completed.
-      </div>
-    );
-  }
+  const nothingPending = visibleLines.length === 0 && pendingTasks.length === 0;
 
   return (
     <div className="space-y-4">
-      <div className="text-xs text-muted-foreground">
-        {lines.length} pending work {lines.length === 1 ? "item" : "items"}
-        {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs text-muted-foreground">
+          {visibleLines.length} pending work {visibleLines.length === 1 ? "item" : "items"}
+          {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
+          {heldCount > 0 && !showHeld && ` · ${heldCount} held`}
+        </div>
+        {heldCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowHeld((v) => !v)}
+          >
+            {showHeld ? (
+              <>
+                <Eye className="h-3.5 w-3.5" /> Hide held — back to normal
+              </>
+            ) : (
+              <>
+                <EyeOff className="h-3.5 w-3.5" /> Show held ({heldCount})
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
-      <GroupedLines lines={lines} checked={false} onToggle={onToggleDone} />
+      {nothingPending ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          🎉 Nothing pending. All items completed (or everything left is on hold).
+        </div>
+      ) : (
+        <GroupedLines
+          lines={visibleLines}
+          checked={false}
+          onToggle={onToggleDone}
+          onSetPriority={onSetPriority}
+          heldIds={held}
+          onToggleHold={toggleHold}
+        />
+      )}
 
       {pendingTasks.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-4">
@@ -1070,10 +1322,12 @@ function CompletedList({
   byParent,
   today,
   onToggleDone,
+  onSetPriority,
 }: {
   byParent: Map<string | null, WorkNode[]>;
   today: string;
   onToggleDone: (n: WorkNode) => void;
+  onSetPriority: (n: WorkNode, p: Priority) => void;
 }) {
   const lines = useMemo(() => buildCompletedLines(byParent, today), [byParent, today]);
 
@@ -1098,7 +1352,12 @@ function CompletedList({
         {" — untick to move back to Pending Works."}
       </div>
 
-      <GroupedLines lines={lines} checked={true} onToggle={onToggleDone} />
+      <GroupedLines
+        lines={lines}
+        checked={true}
+        onToggle={onToggleDone}
+        onSetPriority={onSetPriority}
+      />
 
       {doneTasks.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-4">
