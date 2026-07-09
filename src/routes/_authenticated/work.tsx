@@ -79,23 +79,13 @@ function iconFor(depth: number) {
 }
 
 const PRIORITY_META = {
-  low: { label: "Low", className: "bg-sky-500/15 text-sky-600 dark:text-sky-400" },
-  medium: { label: "Medium", className: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
-  high: { label: "High", className: "bg-red-500/15 text-red-600 dark:text-red-400" },
+  low: { label: "Low", textClass: "text-sky-600 dark:text-sky-400" },
+  medium: { label: "Medium", textClass: "" },
+  high: { label: "High", textClass: "text-red-600 dark:text-red-400" },
 } as const;
 
-function PriorityBadge({ priority }: { priority: "low" | "medium" | "high" }) {
-  const meta = PRIORITY_META[priority];
-  return (
-    <span
-      className={cn(
-        "rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-        meta.className,
-      )}
-    >
-      {meta.label}
-    </span>
-  );
+function priorityTextClass(priority: "low" | "medium" | "high") {
+  return PRIORITY_META[priority].textClass;
 }
 
 function PriorityPicker({
@@ -169,6 +159,7 @@ function WorkPage() {
   const [addTitle, setAddTitle] = useState("");
   const [addKind, setAddKind] = useState<"recurring" | "one_time">("recurring");
   const [addPriority, setAddPriority] = useState<"low" | "medium" | "high">("medium");
+  const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [addDueDate, setAddDueDate] = useState("");
   const [addDueTime, setAddDueTime] = useState("");
   const COLLAPSE_KEY = "lifeos:work:collapsed";
@@ -249,6 +240,7 @@ function WorkPage() {
           setAddTitle("");
           setAddKind("recurring");
           setAddPriority("medium");
+          setShowPriorityPicker(false);
           setAddDueDate("");
           setAddDueTime("");
           setAddingUnder(null);
@@ -274,6 +266,11 @@ function WorkPage() {
   };
 
   const doneCount = nodes.filter((n) => isNodeDone(n, today)).length;
+  const pendingCount = useMemo(() => buildPendingLines(byParent, today).length, [byParent, today]);
+  const completedCount = useMemo(
+    () => buildCompletedLines(byParent, today).length,
+    [byParent, today],
+  );
 
   const resetEverything = () => {
     const ids = nodes.filter((n) => n.done).map((n) => n.id);
@@ -314,7 +311,7 @@ function WorkPage() {
                 className="gap-2"
                 onClick={() => changeView("pending")}
               >
-                <Eye className="h-4 w-4" /> Pending Works
+                <Eye className="h-4 w-4" /> Pending Works ({pendingCount})
               </Button>
               <Button
                 variant="outline"
@@ -322,7 +319,7 @@ function WorkPage() {
                 className="gap-2"
                 onClick={() => changeView("completed")}
               >
-                <CheckCircle2 className="h-4 w-4" /> Completed Works
+                <CheckCircle2 className="h-4 w-4" /> Completed Works ({completedCount})
               </Button>
               <Button
                 variant="outline"
@@ -331,7 +328,7 @@ function WorkPage() {
                 onClick={resetEverything}
                 title="Move all completed items back to pending"
               >
-                <RotateCcw className="h-4 w-4" /> Reset{doneCount > 0 ? ` (${doneCount})` : ""}
+                <RotateCcw className="h-4 w-4" /> Reset ({doneCount})
               </Button>
             </>
           )}
@@ -351,7 +348,7 @@ function WorkPage() {
                 className="gap-2"
                 onClick={() => changeView("completed")}
               >
-                <CheckCircle2 className="h-4 w-4" /> Completed
+                <CheckCircle2 className="h-4 w-4" /> Completed Works ({completedCount})
               </Button>
               <Button
                 variant="outline"
@@ -360,7 +357,7 @@ function WorkPage() {
                 onClick={resetEverything}
                 title="Move all completed items back to pending"
               >
-                <RotateCcw className="h-4 w-4" /> Reset{doneCount > 0 ? ` (${doneCount})` : ""}
+                <RotateCcw className="h-4 w-4" /> Reset ({doneCount})
               </Button>
             </>
           )}
@@ -380,7 +377,7 @@ function WorkPage() {
                 className="gap-2"
                 onClick={() => changeView("pending")}
               >
-                <Eye className="h-4 w-4" /> Pending
+                <Eye className="h-4 w-4" /> Pending Works ({pendingCount})
               </Button>
               <Button
                 variant="outline"
@@ -389,7 +386,7 @@ function WorkPage() {
                 onClick={resetEverything}
                 title="Move all completed items back to pending"
               >
-                <RotateCcw className="h-4 w-4" /> Reset{doneCount > 0 ? ` (${doneCount})` : ""}
+                <RotateCcw className="h-4 w-4" /> Reset ({doneCount})
               </Button>
             </>
           )}
@@ -470,8 +467,20 @@ function WorkPage() {
             />
           </div>
           <div className="space-y-2 pt-2">
-            <Label>Priority</Label>
-            <PriorityPicker value={addPriority} onChange={setAddPriority} />
+            {showPriorityPicker ? (
+              <>
+                <Label>Priority</Label>
+                <PriorityPicker value={addPriority} onChange={setAddPriority} />
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowPriorityPicker(true)}
+                className="text-xs text-primary hover:underline"
+              >
+                + Set priority (optional)
+              </button>
+            )}
           </div>
           {addingUnder && addingUnder.depth >= 2 && (
             <div className="space-y-2 pt-2">
@@ -525,7 +534,14 @@ function WorkPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddingUnder(null)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setAddingUnder(null);
+                setAddPriority("medium");
+                setShowPriorityPicker(false);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={submitAdd}>Add</Button>
@@ -821,7 +837,9 @@ function NodeRow({
               className={cn(
                 "break-words text-sm font-medium leading-snug",
                 depth === 0 && "text-base font-semibold",
-                effectiveDone && "text-muted-foreground line-through",
+                effectiveDone
+                  ? "text-muted-foreground line-through"
+                  : priorityTextClass(node.priority ?? "medium"),
               )}
             >
               {node.title}
@@ -829,7 +847,6 @@ function NodeRow({
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               {meta.label}
             </span>
-            <PriorityBadge priority={node.priority ?? "medium"} />
             {node.task_kind === "one_time" && (
               <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
                 One-time
@@ -957,6 +974,9 @@ function GroupedLines({
                             i === 0 && "font-medium text-primary",
                             i === path.length - 1 && "font-medium text-foreground",
                             i > 0 && i < path.length - 1 && "text-muted-foreground",
+                            i === path.length - 1 &&
+                              !checked &&
+                              priorityTextClass(n.priority ?? "medium"),
                             checked &&
                               i === path.length - 1 &&
                               "line-through text-muted-foreground",
@@ -965,8 +985,7 @@ function GroupedLines({
                           {n.title}
                         </span>
                       </span>
-                    ))}{" "}
-                    <PriorityBadge priority={leaf.priority ?? "medium"} />
+                    ))}
                   </span>
                 </label>
               ))}
