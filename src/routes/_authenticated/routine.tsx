@@ -18,7 +18,19 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { GripVertical, Plus, Pencil, Trash2, Copy, Clock, StickyNote, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  GripVertical,
+  Plus,
+  Pencil,
+  Trash2,
+  Copy,
+  Clock,
+  StickyNote,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
@@ -113,6 +125,10 @@ function RoutinePage() {
   const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<RoutineItem | null>(null);
 
+  const toggleHold = (item: RoutineItem) => {
+    update.mutate({ id: item.id, held: !item.held });
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -180,10 +196,18 @@ function RoutinePage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <PageHeader title="Daily Routine" subtitle="Resets at 4:30 AM · use arrows to review past days" />
+      <PageHeader
+        title="Daily Routine"
+        subtitle="Resets at 4:30 AM · use arrows to review past days"
+      />
 
       <div className="glass mb-4 flex items-center justify-between gap-2 rounded-2xl p-3">
-        <Button variant="ghost" size="icon" onClick={() => setSelectedDate((d) => shiftDate(d, -1))} aria-label="Previous day">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSelectedDate((d) => shiftDate(d, -1))}
+          aria-label="Previous day"
+        >
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <div className="flex flex-col items-center text-center">
@@ -196,7 +220,9 @@ function RoutinePage() {
               Jump to today
             </button>
           )}
-          {isToday && <span className="text-[10px] uppercase tracking-wider text-primary">Today</span>}
+          {isToday && (
+            <span className="text-[10px] uppercase tracking-wider text-primary">Today</span>
+          )}
         </div>
         <Button
           variant="ghost"
@@ -212,7 +238,9 @@ function RoutinePage() {
       <div className="glass mb-6 rounded-2xl p-5">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-medium">Progress {isToday ? "today" : "on this day"}</span>
-          <span className="text-muted-foreground">{done} / {items.length} · {pct}%</span>
+          <span className="text-muted-foreground">
+            {done} / {items.length} · {pct}%
+          </span>
         </div>
         <Progress value={pct} />
       </div>
@@ -242,12 +270,17 @@ function RoutinePage() {
             placeholder="Add a new activity (e.g. Read 20 pages)"
             className="bg-transparent"
           />
-          <Button onClick={add} className="gap-2"><Plus className="h-4 w-4" /> Add</Button>
+          <Button onClick={add} className="gap-2">
+            <Plus className="h-4 w-4" /> Add
+          </Button>
         </div>
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={visibleItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext
+          items={visibleItems.map((i) => i.id)}
+          strategy={verticalListSortingStrategy}
+        >
           <ul className="space-y-2">
             {visibleItems.map((item) => (
               <SortableRow
@@ -259,6 +292,8 @@ function RoutinePage() {
                 onEdit={() => setEditing(item)}
                 onDelete={() => del.mutate(item.id)}
                 onDuplicate={() => duplicate(item)}
+                showHoldControl={filter === "pending"}
+                onToggleHold={() => toggleHold(item)}
               />
             ))}
             {visibleItems.length === 0 && (
@@ -283,6 +318,8 @@ function SortableRow({
   onEdit,
   onDelete,
   onDuplicate,
+  showHoldControl,
+  onToggleHold,
 }: {
   item: RoutineItem;
   checked: boolean;
@@ -291,14 +328,19 @@ function SortableRow({
   onEdit: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  showHoldControl: boolean;
+  onToggleHold: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : "auto",
     opacity: isDragging ? 0.85 : 1,
   };
+  const isHeld = showHoldControl && item.held;
 
   return (
     <li
@@ -306,23 +348,81 @@ function SortableRow({
       style={style}
       className="glass group flex items-center gap-3 rounded-xl px-3 py-3"
     >
-      <button {...attributes} {...listeners} className="cursor-grab p-1 text-muted-foreground hover:text-foreground" aria-label="drag">
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab p-1 text-muted-foreground hover:text-foreground"
+        aria-label="drag"
+      >
         <GripVertical className="h-4 w-4" />
       </button>
-      <Checkbox checked={checked} disabled={disabled} onCheckedChange={onToggle} className="h-5 w-5 shrink-0" />
+      <Checkbox
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onToggle}
+        className="h-5 w-5 shrink-0"
+      />
       <div className="min-w-0 flex-1">
-        <p className={"break-words text-sm font-medium " + (checked ? "text-muted-foreground line-through" : "")}>
-          {item.title}
-        </p>
-        <div className="mt-0.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
-          {item.time && (<span className="flex items-center gap-1"><Clock className="h-3 w-3" />{item.time}</span>)}
-          {item.notes && (<span className="flex items-center gap-1"><StickyNote className="h-3 w-3" />{item.notes}</span>)}
-        </div>
+        {isHeld ? (
+          <span
+            className="inline-block h-3.5 w-40 max-w-full rounded bg-muted-foreground/15"
+            aria-label="Hidden"
+          />
+        ) : (
+          <>
+            <p
+              className={
+                "break-words text-sm font-medium " +
+                (checked ? "text-muted-foreground line-through" : "")
+              }
+            >
+              {item.title}
+            </p>
+            <div className="mt-0.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
+              {item.time && (
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {item.time}
+                </span>
+              )}
+              {item.notes && (
+                <span className="flex items-center gap-1">
+                  <StickyNote className="h-3 w-3" />
+                  {item.notes}
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
+      {showHoldControl && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onToggleHold}
+          className="shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+        >
+          {isHeld ? (
+            <>
+              <Eye className="h-3.5 w-3.5" /> Show
+            </>
+          ) : (
+            <>
+              <EyeOff className="h-3.5 w-3.5" /> Hold
+            </>
+          )}
+        </Button>
+      )}
       <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-        <Button size="icon" variant="ghost" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" onClick={onDuplicate}><Copy className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
+        <Button size="icon" variant="ghost" onClick={onEdit}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant="ghost" onClick={onDuplicate}>
+          <Copy className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant="ghost" onClick={onDelete}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
     </li>
   );
@@ -342,25 +442,40 @@ function EditDialog({
   return (
     <Dialog open={!!item} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="glass">
-        <DialogHeader><DialogTitle>Edit Activity</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Edit Activity</DialogTitle>
+        </DialogHeader>
         {draft && (
           <div className="space-y-4">
             <div>
               <Label>Title</Label>
-              <Input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+              <Input
+                value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              />
             </div>
             <div>
               <Label>Time (optional)</Label>
-              <Input type="time" value={draft.time ?? ""} onChange={(e) => setDraft({ ...draft, time: e.target.value || null })} />
+              <Input
+                type="time"
+                value={draft.time ?? ""}
+                onChange={(e) => setDraft({ ...draft, time: e.target.value || null })}
+              />
             </div>
             <div>
               <Label>Notes</Label>
-              <Textarea value={draft.notes ?? ""} onChange={(e) => setDraft({ ...draft, notes: e.target.value || null })} rows={3} />
+              <Textarea
+                value={draft.notes ?? ""}
+                onChange={(e) => setDraft({ ...draft, notes: e.target.value || null })}
+                rows={3}
+              />
             </div>
           </div>
         )}
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={() => draft && onSave(draft)}>Save</Button>
         </DialogFooter>
       </DialogContent>

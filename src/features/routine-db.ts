@@ -10,6 +10,7 @@ export type RoutineItem = {
   time: string | null;
   notes: string | null;
   sort_order: number;
+  held: boolean;
 };
 
 export type RoutineLog = {
@@ -21,8 +22,7 @@ export type RoutineLog = {
 
 const QK = {
   items: ["lifeos", "routine-items"] as const,
-  logs: (from: string, to: string) =>
-    ["lifeos", "routine-logs", from, to] as const,
+  logs: (from: string, to: string) => ["lifeos", "routine-logs", from, to] as const,
 };
 
 export function useRoutineItems() {
@@ -34,7 +34,7 @@ export function useRoutineItems() {
         .select("*")
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as RoutineItem[];
+      return (data ?? []) as unknown as RoutineItem[];
     },
   });
 }
@@ -57,7 +57,12 @@ export function useRoutineLogs(from: string, to: string) {
 export function useCreateRoutineItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { title: string; time?: string | null; notes?: string | null; sort_order?: number }) => {
+    mutationFn: async (input: {
+      title: string;
+      time?: string | null;
+      notes?: string | null;
+      sort_order?: number;
+    }) => {
       const { error } = await supabase.from("lifeos_routine_items").insert(input);
       if (error) throw error;
     },
@@ -70,7 +75,11 @@ export function useUpdateRoutineItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...patch }: { id: string } & Partial<RoutineItem>) => {
-      const { error } = await supabase.from("lifeos_routine_items").update(patch).eq("id", id);
+      const { error } = await supabase
+        .from("lifeos_routine_items")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(patch as any)
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QK.items }),
@@ -164,11 +173,14 @@ export function useEnsureDefaultRoutine(items: RoutineItem[] | undefined, ready:
     ran.current = true;
     (async () => {
       // try migrating localStorage first
-      let seed: { title: string; time: string | null; notes: string | null; sort_order: number }[] = [];
+      let seed: { title: string; time: string | null; notes: string | null; sort_order: number }[] =
+        [];
       try {
         const raw = typeof window !== "undefined" ? localStorage.getItem("lifeos:routine") : null;
         if (raw) {
-          const parsed = JSON.parse(raw) as { items?: { title: string; time?: string; notes?: string }[] };
+          const parsed = JSON.parse(raw) as {
+            items?: { title: string; time?: string; notes?: string }[];
+          };
           if (parsed.items?.length) {
             seed = parsed.items.map((it, i) => ({
               title: it.title,
@@ -178,7 +190,9 @@ export function useEnsureDefaultRoutine(items: RoutineItem[] | undefined, ready:
             }));
           }
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       if (!seed.length) {
         seed = DEFAULT_ROUTINE.items.map((it, i) => ({
           title: it.title,
@@ -189,7 +203,11 @@ export function useEnsureDefaultRoutine(items: RoutineItem[] | undefined, ready:
       }
       const { error } = await supabase.from("lifeos_routine_items").insert(seed);
       if (!error) {
-        try { localStorage.removeItem("lifeos:routine"); } catch { /* ignore */ }
+        try {
+          localStorage.removeItem("lifeos:routine");
+        } catch {
+          /* ignore */
+        }
         qc.invalidateQueries({ queryKey: QK.items });
       }
     })();

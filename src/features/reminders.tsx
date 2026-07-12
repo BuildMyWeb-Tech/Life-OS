@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AlarmClock, BellRing, X } from "lucide-react";
+import { AlarmClock, BellRing, Bell, X } from "lucide-react";
 import { useTasks, useUpdateTask } from "./tasks-db";
 import { useWorkNodes, useUpdateWorkNode } from "./work-db";
 import { useRoutineItems, useRoutineLogs, useToggleRoutine, routineLogIndex } from "./routine-db";
@@ -115,7 +115,10 @@ export function Reminders() {
   const [active, setActive] = useState<Fire | null>(null);
   const alarmRef = useRef<ReturnType<typeof makeAlarm> | null>(null);
   const firedRef = useRef<Set<string>>(new Set());
-  const permAskedRef = useRef(false);
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
+    "unsupported",
+  );
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   // Every fire currently known, keyed by its tag — kept fresh each tick so the
   // service-worker message handler (registered once, outside this effect) can
   // always resolve a tag back to its "mark done" callback.
@@ -162,29 +165,41 @@ export function Reminders() {
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
   }, []);
 
-  // Ask notification permission after first user interaction (browsers require gesture on some)
+  // Track the real permission state (and whether the banner was dismissed
+  // earlier) so we can show an explicit "Enable notifications" control
+  // instead of guessing at a random tap/keypress to trigger the browser
+  // prompt — that silent approach was unreliable and easy to miss.
   useEffect(() => {
-    if (permAskedRef.current) return;
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    const ask = () => {
-      permAskedRef.current = true;
-      if (Notification.permission === "default") {
-        try {
-          Notification.requestPermission();
-        } catch {
-          /* noop */
-        }
-      }
-      window.removeEventListener("pointerdown", ask);
-      window.removeEventListener("keydown", ask);
-    };
-    window.addEventListener("pointerdown", ask, { once: true });
-    window.addEventListener("keydown", ask, { once: true });
-    return () => {
-      window.removeEventListener("pointerdown", ask);
-      window.removeEventListener("keydown", ask);
-    };
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setPermission("unsupported");
+      return;
+    }
+    setPermission(Notification.permission);
+    try {
+      setBannerDismissed(localStorage.getItem("lifeos:reminders:banner-dismissed") === "1");
+    } catch {
+      /* noop */
+    }
   }, []);
+
+  const requestNotificationPermission = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    try {
+      const result = await Notification.requestPermission();
+      setPermission(result);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const dismissBanner = () => {
+    setBannerDismissed(true);
+    try {
+      localStorage.setItem("lifeos:reminders:banner-dismissed", "1");
+    } catch {
+      /* noop */
+    }
+  };
 
   // Build the list of upcoming fires from live data
   useEffect(() => {
@@ -267,7 +282,8 @@ export function Reminders() {
             });
             return;
           }
-        } catch {
+        } catch (err) {
+          console.error("[reminders] service worker notification failed", err);
           /* fall through to plain Notification below */
         }
         try {
@@ -280,8 +296,8 @@ export function Reminders() {
             window.focus();
             n.close();
           };
-        } catch {
-          /* noop */
+        } catch (err) {
+          console.error("[reminders] Notification() failed", err);
         }
       })();
 
@@ -336,44 +352,79 @@ export function Reminders() {
     dismiss();
   };
 
-  if (!active) return null;
+  const showEnableBanner = permission === "default" && !bannerDismissed;
+  const showBlockedNote = permission === "denied" && !bannerDismissed;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-primary/40 bg-card shadow-[0_0_60px_rgba(0,0,0,0.6)]">
-        <div className="flex items-center gap-3 border-b border-border bg-primary/10 px-5 py-4">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary/20 text-primary">
-            <AlarmClock className="h-6 w-6 animate-pulse" />
+    <>
+      {(showEnableBanner || showBlockedNote) && (
+        <div className="fixed inset-x-0 bottom-0 z-[90] flex justify-center p-3 sm:bottom-4">
+          <div className="glass flex w-full max-w-md items-center gap-3 rounded-2xl border border-primary/30 px-4 py-3 shadow-lg">
+            <Bell className="h-4 w-4 shrink-0 text-primary" />
+            <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+              {showEnableBanner
+                ? "Enable notifications to get reminders even when LifeOS isn't the active tab."
+                : "Notifications are blocked. Enable them in your browser/site settings to get reminders outside the app."}
+            </p>
+            {showEnableBanner && (
+              <Button size="sm" onClick={requestNotificationPermission} className="shrink-0">
+                Enable
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={dismissBanner}
+              aria-label="Dismiss"
+              className="shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">{active.meta}</p>
-            <p className="truncate text-sm font-semibold">Reminder</p>
+        </div>
+      )}
+
+      {active && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-primary/40 bg-card shadow-[0_0_60px_rgba(0,0,0,0.6)]">
+            <div className="flex items-center gap-3 border-b border-border bg-primary/10 px-5 py-4">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary/20 text-primary">
+                <AlarmClock className="h-6 w-6 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                  {active.meta}
+                </p>
+                <p className="truncate text-sm font-semibold">Reminder</p>
+              </div>
+              <Button size="icon" variant="ghost" onClick={dismiss} aria-label="Close">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-2 px-5 py-6">
+              <p className="text-lg font-semibold leading-snug">{active.title}</p>
+              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <BellRing className="h-4 w-4" />
+                {active.when.toLocaleString(undefined, {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+            <div className="flex gap-2 border-t border-border p-4">
+              <Button variant="outline" className="flex-1" onClick={snooze}>
+                Snooze 5m
+              </Button>
+              <Button className="flex-1" onClick={markDone}>
+                Mark done
+              </Button>
+            </div>
           </div>
-          <Button size="icon" variant="ghost" onClick={dismiss} aria-label="Close">
-            <X className="h-4 w-4" />
-          </Button>
         </div>
-        <div className="space-y-2 px-5 py-6">
-          <p className="text-lg font-semibold leading-snug">{active.title}</p>
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <BellRing className="h-4 w-4" />
-            {active.when.toLocaleString(undefined, {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-          </p>
-        </div>
-        <div className="flex gap-2 border-t border-border p-4">
-          <Button variant="outline" className="flex-1" onClick={snooze}>
-            Snooze 5m
-          </Button>
-          <Button className="flex-1" onClick={markDone}>
-            Mark done
-          </Button>
-        </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 }

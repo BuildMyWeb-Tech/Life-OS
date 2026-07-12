@@ -160,10 +160,21 @@ function HabitsPage() {
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <PageHeader title="Habit Tracker" subtitle="Build the system. The system builds you." />
 
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <StatCard label="Today" value={`${doneToday}/${positive.length}`} icon={<Flame className="h-4 w-4" />} />
-        <StatCard label="Best Habit" value={best ? `${best.s.rate}%` : "—"} hint={best?.h.name} accent="success" />
-        <StatCard label="Total Habits" value={positive.length} accent="accent" />
+      <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-4">
+        <StatCard
+          compact
+          label="Today"
+          value={`${doneToday}/${positive.length}`}
+          icon={<Flame className="h-4 w-4" />}
+        />
+        <StatCard
+          compact
+          label="Best Habit"
+          value={best ? `${best.s.rate}%` : "—"}
+          hint={best?.h.name}
+          accent="success"
+        />
+        <StatCard compact label="Total Habits" value={positive.length} accent="accent" />
       </div>
 
       <div className="glass mb-4 flex flex-wrap items-center gap-2 rounded-2xl p-3">

@@ -1256,25 +1256,56 @@ function PendingList({
           </div>
           <div className="space-y-1.5">
             {pendingTasks.map((t: Task) => (
-              <label
+              <div
                 key={t.id}
-                className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
+                onClick={() => updateTask.mutate({ id: t.id, done: true })}
+                className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30"
               >
                 <Checkbox
                   checked={false}
                   onCheckedChange={() => updateTask.mutate({ id: t.id, done: true })}
+                  onClick={(e) => e.stopPropagation()}
                   className="mt-0.5 shrink-0"
                 />
-                <span className="min-w-0 flex-1 break-words leading-snug">
-                  <span className="font-medium text-foreground">{t.title}</span>
-                  {(t.due_date || t.due_time) && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {t.due_date ?? ""}
-                      {t.due_time ? ` · ${t.due_time}` : ""}
+                <div className="min-w-0 flex-1">
+                  {t.held ? (
+                    <span
+                      className="inline-block h-3.5 w-40 max-w-full rounded bg-muted-foreground/15"
+                      aria-label="Hidden"
+                    />
+                  ) : (
+                    <span className="break-words leading-snug">
+                      <span className="font-medium text-foreground">{t.title}</span>
+                      {(t.due_date || t.due_time) && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {t.due_date ?? ""}
+                          {t.due_time ? ` · ${t.due_time}` : ""}
+                        </span>
+                      )}
                     </span>
                   )}
-                </span>
-              </label>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateTask.mutate({ id: t.id, held: !t.held });
+                  }}
+                  className="shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {t.held ? (
+                    <>
+                      <Eye className="h-3.5 w-3.5" /> Show
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5" /> Hold
+                    </>
+                  )}
+                </Button>
+              </div>
             ))}
           </div>
         </div>

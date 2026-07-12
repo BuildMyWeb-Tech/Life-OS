@@ -15,9 +15,9 @@ import {
   CheckSquare,
   Wand2,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { logout } from "@/lib/auth";
+import { logout, attachSessionKeepAlive } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Reminders } from "@/features/reminders";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+
+  useEffect(() => attachSessionKeepAlive(), []);
 
   const handleLogout = async () => {
     await logout();
