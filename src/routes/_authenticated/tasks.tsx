@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   CheckSquare,
   Plus,
@@ -8,7 +9,6 @@ import {
   Pencil,
   Calendar as CalendarIcon,
   Clock,
-  ChevronDown,
   ChevronRight,
   ChevronLeft,
   ListChecks,
@@ -44,7 +44,7 @@ import {
   type Subtask,
 } from "@/features/tasks-db";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+
 export const Route = createFileRoute("/_authenticated/tasks")({
   ssr: false,
   component: TasksPage,
@@ -106,12 +106,22 @@ function formatDue(task: Task): string | null {
   return parts.join(" • ");
 }
 
+function formatRange(task: Task): string | null {
+  if (!task.start_date && !task.end_date) return null;
+  const fmt = (d: string) =>
+    new Date(d + "T00:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  if (task.start_date && task.end_date) return `${fmt(task.start_date)} → ${fmt(task.end_date)}`;
+  if (task.start_date) return `From ${fmt(task.start_date)}`;
+  return `Until ${fmt(task.end_date!)}`;
+}
+
 function TasksPage() {
   const { data: tasks = [], isLoading } = useTasks();
   const { data: subtasks = [] } = useSubtasks();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const createSubtask = useCreateSubtask();
 
   const subtaskMap = useMemo(() => subtasksByTask(subtasks), [subtasks]);
 
@@ -120,7 +130,12 @@ function TasksPage() {
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  // Sub-task titles queued while creating a brand-new task (no task_id yet
+  // to attach them to) — created for real right after the task itself saves.
+  const [draftSubtasks, setDraftSubtasks] = useState<string[]>([]);
+  const [draftSubtaskText, setDraftSubtaskText] = useState("");
 
   const [filter, setFilter] = useState<TaskFilter>(loadTaskFilter);
   const [dateFilter, setDateFilter] = useState<string | null>(null); // null = All Dates
@@ -158,6 +173,10 @@ function TasksPage() {
     setTitle("");
     setDueDate(dateFilter ?? "");
     setDueTime("");
+    setStartDate("");
+    setEndDate("");
+    setDraftSubtasks([]);
+    setDraftSubtaskText("");
   };
 
   const openCreate = () => {
@@ -170,6 +189,8 @@ function TasksPage() {
     setTitle(t.title);
     setDueDate(t.due_date ?? "");
     setDueTime(t.due_time ? t.due_time.slice(0, 5) : "");
+    setStartDate(t.start_date ?? "");
+    setEndDate(t.end_date ?? "");
     setOpen(true);
   };
 
@@ -180,23 +201,24 @@ function TasksPage() {
       title: trimmed,
       due_date: dueDate || null,
       due_time: dueTime ? `${dueTime}:00` : null,
+      start_date: startDate || null,
+      end_date: endDate || null,
     };
     if (editing) {
       await updateTask.mutateAsync({ id: editing.id, ...payload });
     } else {
-      await createTask.mutateAsync(payload);
+      const created = await createTask.mutateAsync(payload);
+      // Attach any sub-tasks that were queued before the task existed.
+      for (let i = 0; i < draftSubtasks.length; i++) {
+        await createSubtask.mutateAsync({
+          task_id: created.id,
+          title: draftSubtasks[i],
+          sort_order: i,
+        });
+      }
     }
     setOpen(false);
     resetForm();
-  };
-
-  const toggleExpanded = (id: string) => {
-    setExpanded((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
   };
 
   return (
@@ -211,7 +233,7 @@ function TasksPage() {
         }
       />
 
-     <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <StatCard
           compact
           label="Total"
@@ -316,11 +338,11 @@ function TasksPage() {
                 key={t.id}
                 task={t}
                 subtasks={subtaskMap.get(t.id) ?? []}
-                expanded={expanded.has(t.id)}
-                onToggleExpand={() => toggleExpanded(t.id)}
                 onToggle={(done) => {
                   if (done) {
-                    deleteTask.mutate(t.id, { onSuccess: () => toast.success("Completed & removed") });
+                    deleteTask.mutate(t.id, {
+                      onSuccess: () => toast.success("Completed & removed"),
+                    });
                   } else {
                     updateTask.mutate({ id: t.id, done });
                   }
@@ -380,15 +402,43 @@ function TasksPage() {
                 />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="task-start">Start date (optional)</Label>
+                <Input
+                  id="task-start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="task-end">End date (optional)</Label>
+                <Input
+                  id="task-end"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
           </div>
 
-          {editing && (
+          {editing ? (
             <SubtaskEditor taskId={editing.id} subtasks={subtaskMap.get(editing.id) ?? []} />
-          )}
-          {!editing && (
-            <p className="text-xs text-muted-foreground">
-              Save the task first, then reopen it to add sub-tasks.
-            </p>
+          ) : (
+            <DraftSubtaskEditor
+              titles={draftSubtasks}
+              text={draftSubtaskText}
+              onTextChange={setDraftSubtaskText}
+              onAdd={() => {
+                const trimmed = draftSubtaskText.trim();
+                if (!trimmed) return;
+                setDraftSubtasks((prev) => [...prev, trimmed]);
+                setDraftSubtaskText("");
+              }}
+              onRemove={(i) => setDraftSubtasks((prev) => prev.filter((_, idx) => idx !== i))}
+            />
           )}
 
           <DialogFooter>
@@ -401,6 +451,63 @@ function TasksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function DraftSubtaskEditor({
+  titles,
+  text,
+  onTextChange,
+  onAdd,
+  onRemove,
+}: {
+  titles: string[];
+  text: string;
+  onTextChange: (v: string) => void;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+}) {
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <Label className="flex items-center gap-2">
+        <ListChecks className="h-4 w-4" /> Sub-tasks{" "}
+        {titles.length > 0 && (
+          <span className="text-xs font-normal text-muted-foreground">({titles.length})</span>
+        )}
+      </Label>
+      {titles.length > 0 && (
+        <ul className="space-y-1">
+          {titles.map((t, i) => (
+            <li key={i} className="flex items-center gap-2 rounded-lg bg-secondary/40 px-2 py-1.5">
+              <span className="flex-1 text-sm">{t}</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onRemove(i)}
+                aria-label="Remove sub-task"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <Input
+          value={text}
+          onChange={(e) => onTextChange(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onAdd())}
+          placeholder="Add a sub-task"
+          className="bg-transparent"
+        />
+        <Button type="button" size="icon" onClick={onAdd} aria-label="Add sub-task">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Added when you save the task — created together with it.
+      </p>
     </div>
   );
 }
@@ -477,22 +584,19 @@ function SubtaskEditor({ taskId, subtasks }: { taskId: string; subtasks: Subtask
 function TaskRow({
   task,
   subtasks,
-  expanded,
-  onToggleExpand,
   onToggle,
   onEdit,
   onDelete,
 }: {
   task: Task;
   subtasks: Subtask[];
-  expanded: boolean;
-  onToggleExpand: () => void;
   onToggle: (done: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const toggleSubtask = useToggleSubtask();
   const due = formatDue(task);
+  const range = formatRange(task);
   const hasSubtasks = subtasks.length > 0;
   const subDone = subtasks.filter((s) => s.done).length;
   const subPct = hasSubtasks ? Math.round((subDone / subtasks.length) * 100) : 0;
@@ -514,11 +618,7 @@ function TaskRow({
           aria-label="Toggle done"
           className="mt-0.5"
         />
-        <button
-          type="button"
-          onClick={hasSubtasks ? onToggleExpand : undefined}
-          className={cn("min-w-0 flex-1 text-left", !hasSubtasks && "cursor-default")}
-        >
+        <div className="min-w-0 flex-1">
           <p
             className={cn(
               "break-words text-sm font-medium",
@@ -533,19 +633,43 @@ function TaskRow({
                 <CalendarIcon className="h-3 w-3" /> {due}
               </span>
             )}
+            {range && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" /> {range}
+              </span>
+            )}
             {hasSubtasks && (
               <span className="flex items-center gap-1">
-                {expanded ? (
-                  <ChevronDown className="h-3 w-3" />
-                ) : (
-                  <ChevronRight className="h-3 w-3" />
-                )}
                 <ListChecks className="h-3 w-3" /> {subDone}/{subtasks.length} sub-tasks
               </span>
             )}
           </div>
           {hasSubtasks && <Progress value={subPct} className="mt-2 h-1" />}
-        </button>
+          {hasSubtasks && (
+            <ul className="mt-2 space-y-1">
+              {subtasks.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center gap-2 rounded-lg bg-secondary/30 px-2 py-1.5"
+                >
+                  <Checkbox
+                    checked={s.done}
+                    onCheckedChange={(v) => toggleSubtask.mutate({ id: s.id, done: !!v })}
+                    className="h-4 w-4"
+                  />
+                  <span
+                    className={cn(
+                      "flex-1 text-xs",
+                      s.done && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {s.title}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <RowActions
           actions={[
             { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
@@ -558,28 +682,6 @@ function TaskRow({
           ]}
         />
       </div>
-
-      {hasSubtasks && expanded && (
-        <ul className="space-y-1 border-t border-border/60 px-3 pb-3 pt-2">
-          {subtasks.map((s) => (
-            <li
-              key={s.id}
-              className="flex items-center gap-2 rounded-lg bg-secondary/30 px-2 py-1.5"
-            >
-              <Checkbox
-                checked={s.done}
-                onCheckedChange={(v) => toggleSubtask.mutate({ id: s.id, done: !!v })}
-                className="h-4 w-4"
-              />
-              <span
-                className={cn("flex-1 text-xs", s.done && "text-muted-foreground line-through")}
-              >
-                {s.title}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </motion.li>
   );
 }

@@ -8,6 +8,8 @@ export type Task = {
   title: string;
   due_date: string | null;
   due_time: string | null;
+  start_date: string | null;
+  end_date: string | null;
   done: boolean;
   held: boolean;
   sort_order: number;
@@ -54,17 +56,25 @@ export function useCreateTask() {
       title: string;
       due_date?: string | null;
       due_time?: string | null;
+      start_date?: string | null;
+      end_date?: string | null;
     }) => {
       const { data: userData } = await supabase.auth.getUser();
       const user_id = userData.user?.id;
       if (!user_id) throw new Error("Not signed in");
-      const { error } = await table().insert({
-        user_id,
-        title: input.title,
-        due_date: input.due_date ?? null,
-        due_time: input.due_time ?? null,
-      });
+      const { data, error } = await table()
+        .insert({
+          user_id,
+          title: input.title,
+          due_date: input.due_date ?? null,
+          due_time: input.due_time ?? null,
+          start_date: input.start_date ?? null,
+          end_date: input.end_date ?? null,
+        })
+        .select()
+        .single();
       if (error) throw error;
+      return data as Task;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
     onError: (e: Error) => toast.error(e.message),
@@ -79,6 +89,8 @@ export function useUpdateTask() {
       title?: string;
       due_date?: string | null;
       due_time?: string | null;
+      start_date?: string | null;
+      end_date?: string | null;
       done?: boolean;
       held?: boolean;
     }) => {

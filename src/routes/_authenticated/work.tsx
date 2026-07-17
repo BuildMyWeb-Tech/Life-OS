@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import {
   DndContext,
@@ -34,6 +34,8 @@ import {
   CheckCircle2,
   ArrowLeft,
   RotateCcw,
+  Target,
+  Phone,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -404,33 +406,33 @@ function WorkPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader title={headerTitle} subtitle={headerSubtitle} />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {view === "tree" && (
             <>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={() => changeView("pending")}
               >
-                <Eye className="h-4 w-4" /> Pending Works ({pendingCount})
+                <Eye className="h-3.5 w-3.5" /> Pending ({pendingCount})
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={() => changeView("completed")}
               >
-                <CheckCircle2 className="h-4 w-4" /> Completed Works ({completedCount})
+                <CheckCircle2 className="h-3.5 w-3.5" /> Completed ({completedCount})
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={resetEverything}
                 title="Move all completed items back to pending"
               >
-                <RotateCcw className="h-4 w-4" /> Reset ({doneCount})
+                <RotateCcw className="h-3.5 w-3.5" /> Reset ({doneCount})
               </Button>
             </>
           )}
@@ -439,27 +441,27 @@ function WorkPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={() => changeView("tree")}
               >
-                <ArrowLeft className="h-4 w-4" /> Back
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={() => changeView("completed")}
               >
-                <CheckCircle2 className="h-4 w-4" /> Completed Works ({completedCount})
+                <CheckCircle2 className="h-3.5 w-3.5" /> Completed ({completedCount})
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={resetEverything}
                 title="Move all completed items back to pending"
               >
-                <RotateCcw className="h-4 w-4" /> Reset ({doneCount})
+                <RotateCcw className="h-3.5 w-3.5" /> Reset ({doneCount})
               </Button>
             </>
           )}
@@ -468,27 +470,27 @@ function WorkPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={() => changeView("tree")}
               >
-                <ArrowLeft className="h-4 w-4" /> Back
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={() => changeView("pending")}
               >
-                <Eye className="h-4 w-4" /> Pending Works ({pendingCount})
+                <Eye className="h-3.5 w-3.5" /> Pending ({pendingCount})
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="gap-1.5 px-2.5 text-xs"
                 onClick={resetEverything}
                 title="Move all completed items back to pending"
               >
-                <RotateCcw className="h-4 w-4" /> Reset ({doneCount})
+                <RotateCcw className="h-3.5 w-3.5" /> Reset ({doneCount})
               </Button>
             </>
           )}
@@ -516,6 +518,19 @@ function WorkPage() {
 
       {view === "tree" && (
         <>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/client-leads">
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Target className="h-3.5 w-3.5" /> Client Leads
+              </Button>
+            </Link>
+            <Link to="/client-calls">
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Phone className="h-3.5 w-3.5" /> Client Calls
+              </Button>
+            </Link>
+          </div>
+
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row">
             <Input
               value={newCompany}
@@ -969,15 +984,12 @@ function NodeRow({
             >
               {node.title}
             </p>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              {meta.label}
-            </span>
             {node.task_kind === "one_time" && (
               <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                 One-time
               </span>
             )}
-            {/* <QuickPriorityMenu value={node.priority} onChange={(p) => onSetPriority(p)} /> */}
+            <QuickPriorityMenu value={node.priority} onChange={(p) => onSetPriority(p)} />
           </div>
           {dueLine && (
             <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -1164,12 +1176,12 @@ function GroupedLines({
                         </>
                       )}
                     </div>
-                    {/* {onSetPriority && !isHeld && (
+                    {onSetPriority && !isHeld && (
                       <QuickPriorityMenu
                         value={leaf.priority}
                         onChange={(p) => onSetPriority(leaf, p)}
                       />
-                    )} */}
+                    )}
                     {onToggleHold && (
                       <Button
                         type="button"

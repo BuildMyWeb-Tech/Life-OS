@@ -21,6 +21,8 @@ import { Route as AuthenticatedReportRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedNegativeHabitsRouteImport } from './routes/_authenticated/negative-habits'
 import { Route as AuthenticatedHabitsRouteImport } from './routes/_authenticated/habits'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedClientLeadsRouteImport } from './routes/_authenticated/client-leads'
+import { Route as AuthenticatedClientCallsRouteImport } from './routes/_authenticated/client-calls'
 import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 
@@ -85,6 +87,18 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedClientLeadsRoute =
+  AuthenticatedClientLeadsRouteImport.update({
+    id: '/client-leads',
+    path: '/client-leads',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedClientCallsRoute =
+  AuthenticatedClientCallsRouteImport.update({
+    id: '/client-calls',
+    path: '/client-calls',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedCategoriesRoute = AuthenticatedCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -102,6 +116,8 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/categories': typeof AuthenticatedCategoriesRoute
+  '/client-calls': typeof AuthenticatedClientCallsRoute
+  '/client-leads': typeof AuthenticatedClientLeadsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
@@ -117,6 +133,8 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/categories': typeof AuthenticatedCategoriesRoute
+  '/client-calls': typeof AuthenticatedClientCallsRoute
+  '/client-leads': typeof AuthenticatedClientLeadsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
@@ -134,6 +152,8 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
+  '/_authenticated/client-calls': typeof AuthenticatedClientCallsRoute
+  '/_authenticated/client-leads': typeof AuthenticatedClientLeadsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/habits': typeof AuthenticatedHabitsRoute
   '/_authenticated/negative-habits': typeof AuthenticatedNegativeHabitsRoute
@@ -151,6 +171,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/calendar'
     | '/categories'
+    | '/client-calls'
+    | '/client-leads'
     | '/dashboard'
     | '/habits'
     | '/negative-habits'
@@ -166,6 +188,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/calendar'
     | '/categories'
+    | '/client-calls'
+    | '/client-leads'
     | '/dashboard'
     | '/habits'
     | '/negative-habits'
@@ -182,6 +206,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/_authenticated/calendar'
     | '/_authenticated/categories'
+    | '/_authenticated/client-calls'
+    | '/_authenticated/client-leads'
     | '/_authenticated/dashboard'
     | '/_authenticated/habits'
     | '/_authenticated/negative-habits'
@@ -285,6 +311,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/client-leads': {
+      id: '/_authenticated/client-leads'
+      path: '/client-leads'
+      fullPath: '/client-leads'
+      preLoaderRoute: typeof AuthenticatedClientLeadsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/client-calls': {
+      id: '/_authenticated/client-calls'
+      path: '/client-calls'
+      fullPath: '/client-calls'
+      preLoaderRoute: typeof AuthenticatedClientCallsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/categories': {
       id: '/_authenticated/categories'
       path: '/categories'
@@ -305,6 +345,8 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
+  AuthenticatedClientCallsRoute: typeof AuthenticatedClientCallsRoute
+  AuthenticatedClientLeadsRoute: typeof AuthenticatedClientLeadsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHabitsRoute: typeof AuthenticatedHabitsRoute
   AuthenticatedNegativeHabitsRoute: typeof AuthenticatedNegativeHabitsRoute
@@ -318,6 +360,8 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
+  AuthenticatedClientCallsRoute: AuthenticatedClientCallsRoute,
+  AuthenticatedClientLeadsRoute: AuthenticatedClientLeadsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHabitsRoute: AuthenticatedHabitsRoute,
   AuthenticatedNegativeHabitsRoute: AuthenticatedNegativeHabitsRoute,

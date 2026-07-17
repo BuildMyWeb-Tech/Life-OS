@@ -14,6 +14,8 @@ import {
   Briefcase,
   CheckSquare,
   Wand2,
+  Target,
+  Phone,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,6 +28,8 @@ const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
   { to: "/work", label: "Work & Projects", icon: Briefcase },
+  { to: "/client-leads", label: "Client Leads", icon: Target },
+  { to: "/client-calls", label: "Client Calls", icon: Phone },
   { to: "/tasks", label: "To Do List", icon: CheckSquare },
   { to: "/habits", label: "Habits", icon: Flame },
   { to: "/vision-board", label: "Vision Board", icon: Wand2 },
