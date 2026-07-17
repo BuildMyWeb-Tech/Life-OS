@@ -32,7 +32,6 @@ import {
   EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,6 +62,7 @@ import {
 } from "@/features/routine-db";
 import { useHabits, useToggleHabit, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
 import { findHabitByTitle } from "@/lib/cross-sync";
+import { PageHeader, RowActions } from "@/components/ui-bits";
 
 export const Route = createFileRoute("/_authenticated/routine")({
   ssr: false,
@@ -404,25 +404,39 @@ function SortableRow({
         >
           {isHeld ? (
             <>
-              <Eye className="h-3.5 w-3.5" /> Show
+              <Eye className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Show</span>
             </>
           ) : (
             <>
-              <EyeOff className="h-3.5 w-3.5" /> Hold
+              <EyeOff className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Hold</span>
             </>
           )}
         </Button>
       )}
-      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+      {/* Desktop/laptop: icons directly visible, no dropdown */}
+      <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
         <Button size="icon" variant="ghost" onClick={onEdit}>
           <Pencil className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="ghost" onClick={onDuplicate}>
-          <Copy className="h-4 w-4" />
         </Button>
         <Button size="icon" variant="ghost" onClick={onDelete}>
           <Trash2 className="h-4 w-4" />
         </Button>
+      </div>
+      {/* Mobile: collapse actions behind "•••" to save space */}
+      <div className="shrink-0 sm:hidden">
+        <RowActions
+          actions={[
+            { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
+            {
+              label: "Delete",
+              icon: <Trash2 className="h-4 w-4" />,
+              onClick: onDelete,
+              destructive: true,
+            },
+          ]}
+        />
       </div>
     </li>
   );

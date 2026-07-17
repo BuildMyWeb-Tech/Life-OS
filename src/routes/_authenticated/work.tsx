@@ -1221,7 +1221,13 @@ function PendingList({
 
   const { data: tasks = [] } = useTasks();
   const updateTask = useUpdateTask();
-  const pendingTasks = useMemo(() => tasks.filter((t) => !t.done), [tasks]);
+  // Only show to-dos that are either undated or due today — anything with a
+  // past or future due date is left for its own day, so this list doesn't
+  // fill up with things that aren't actionable right now.
+  const pendingTasks = useMemo(
+    () => tasks.filter((t) => !t.done && (!t.due_date || t.due_date === today)),
+    [tasks, today],
+  );
 
   const nothingPending = lines.length === 0 && pendingTasks.length === 0;
 

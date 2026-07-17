@@ -90,6 +90,20 @@
     background-attachment: fixed;
     min-height: 100vh;
   }
+  /* Native date/time inputs render a black calendar/clock icon by default,
+     which is invisible against this app's dark background — invert it so
+     it's actually visible and clickable (desktop browsers show a calendar
+     picker on click; typing the date directly always works too). */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.5);
+    cursor: pointer;
+    opacity: 0.8;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover,
+  input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
 }
 
 @utility glass {

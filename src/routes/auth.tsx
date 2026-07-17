@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate , Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Lock, User } from "lucide-react";
@@ -95,7 +95,7 @@ function AuthPage() {
           <Button disabled={loading} className="w-full" size="lg">
             {loading ? "Signing in…" : "Enter LifeOS"}
           </Button>
-          <Button
+          {/* <Button
             type="button"
             variant="secondary"
             disabled={loading}
@@ -104,8 +104,14 @@ function AuthPage() {
             size="lg"
           >
             ⚡ Quick Enter LifeOS
-          </Button>
+          </Button> */}
         </form>
+        <Link
+          to="/register"
+          className="mt-6 block text-center text-sm text-muted-foreground hover:text-foreground"
+        >
+          New here? <span className="text-primary">Create an account</span>
+        </Link>
       </motion.div>
     </div>
   );

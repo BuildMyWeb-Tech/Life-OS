@@ -44,7 +44,7 @@ import {
   type Subtask,
 } from "@/features/tasks-db";
 import { cn } from "@/lib/utils";
-
+import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/tasks")({
   ssr: false,
   component: TasksPage,
@@ -318,7 +318,13 @@ function TasksPage() {
                 subtasks={subtaskMap.get(t.id) ?? []}
                 expanded={expanded.has(t.id)}
                 onToggleExpand={() => toggleExpanded(t.id)}
-                onToggle={(done) => updateTask.mutate({ id: t.id, done })}
+                onToggle={(done) => {
+                  if (done) {
+                    deleteTask.mutate(t.id, { onSuccess: () => toast.success("Completed & removed") });
+                  } else {
+                    updateTask.mutate({ id: t.id, done });
+                  }
+                }}
                 onEdit={() => openEdit(t)}
                 onDelete={() => deleteTask.mutate(t.id)}
               />
