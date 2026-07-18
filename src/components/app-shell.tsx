@@ -147,6 +147,8 @@ const bottomNav = [
   { to: "/routine", label: "Routine", icon: ListChecks },
   { to: "/work", label: "Work", icon: Briefcase },
   { to: "/tasks", label: "To Do", icon: CheckSquare },
+  { to: "/client-leads", label: "Leads", icon: Target },
+  { to: "/client-calls", label: "Calls", icon: Phone },
   { to: "/vision-board", label: "Vision", icon: Wand2 },
   { to: "/report", label: "Report", icon: BarChart3 },
 ] as const;
@@ -154,12 +156,12 @@ const bottomNav = [
 function BottomNav({ pathname }: { pathname: string }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/85 backdrop-blur-xl lg:hidden">
-      <ul className="mx-auto grid max-w-2xl grid-cols-5">
+      <ul className="mx-auto flex max-w-2xl overflow-x-auto">
         {bottomNav.map((item) => {
           const active = pathname === item.to;
           const Icon = item.icon;
           return (
-            <li key={item.to}>
+            <li key={item.to} className="flex-1 min-w-[64px]">
               <Link
                 to={item.to}
                 className={cn(

@@ -47,6 +47,7 @@ import {
   useRoutineItems,
   useRoutineLogs,
   useToggleRoutine,
+  useCreateRoutineItem,
   routineLogIndex,
   isRoutineDone,
 } from "@/features/routine-db";
@@ -83,6 +84,8 @@ function HabitsPage() {
   const create = useCreateHabit();
   const update = useUpdateHabit();
   const del = useDeleteHabit();
+  const createRoutineItem = useCreateRoutineItem();
+
 
   // Routine mirror (DB)
   const { data: routineItems = [] } = useRoutineItems();
@@ -136,8 +139,9 @@ function HabitsPage() {
 
   const add = () => {
     if (!name.trim()) return;
+    const title = name.trim();
     create.mutate({
-      name: name.trim(),
+      name: title,
       emoji: "⭐",
       kind: "positive",
       frequency: "daily",
@@ -145,6 +149,12 @@ function HabitsPage() {
       parent_id: parentId === "none" ? null : parentId,
       sort_order: 999,
     });
+    // Habits and Daily Routine are linked by matching title — auto-create the
+    // routine counterpart too (unless one already exists) so done/undone
+    // stays in sync between the two pages from the start.
+    if (!findRoutineByName(routineItems, title)) {
+      createRoutineItem.mutate({ title, sort_order: routineItems.length });
+    }
     setName("");
   };
 

@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   ArrowLeft,
   RotateCcw,
+  AlertTriangle,
   Target,
   Phone,
 } from "lucide-react";
@@ -67,9 +68,10 @@ import {
   useDeleteWorkNode,
   useReorderWorkNodes,
   useResetAllWorkNodes,
+  useUnhideAllWorkNodes,
   type WorkNode,
 } from "@/features/work-db";
-import { useTasks, useUpdateTask, type Task } from "@/features/tasks-db";
+import { useTasks, useUpdateTask, useUnhideAllTasks, type Task } from "@/features/tasks-db";
 
 export const Route = createFileRoute("/_authenticated/work")({
   ssr: false,
@@ -209,6 +211,24 @@ function formatDueLine(n: { due_date: string | null; due_time: string | null }):
  * toggleDone below — so this only really matters for recurring items.) */
 function isNodeDone(n: WorkNode, today: string) {
   return n.done && n.done_on === today;
+}
+
+/** A held item is only actually hidden while held=true AND (no expiry set,
+ * or the expiry hasn't passed yet). Once held_until passes, it's treated as
+ * visible again automatically — no extra write needed, this is just a read. */
+function isEffectivelyHeld(held: boolean, heldUntil: string | null) {
+  if (!held) return false;
+  if (!heldUntil) return true;
+  return new Date(heldUntil).getTime() > Date.now();
+}
+
+/** A distinct color (separate from the priority palette) for anything whose
+ * due date has passed and isn't done yet — this should stand out on its own,
+ * regardless of what priority (if any) is also set. */
+const OVERDUE_CLASS = "text-fuchsia-600 dark:text-fuchsia-400";
+
+function isOverdue(dueDate: string | null, done: boolean, today: string) {
+  return !done && !!dueDate && dueDate < today;
 }
 
 type ViewMode = "tree" | "pending" | "completed";
@@ -365,10 +385,6 @@ function WorkPage() {
     update.mutate({ id: n.id, priority: p });
   };
 
-  const toggleHold = (n: WorkNode) => {
-    update.mutate({ id: n.id, held: !n.held });
-  };
-
   const doneCount = nodes.filter((n) => isNodeDone(n, today)).length;
   const pendingCount = useMemo(() => buildPendingLines(byParent, today).length, [byParent, today]);
   const completedCount = useMemo(
@@ -494,6 +510,16 @@ function WorkPage() {
               </Button>
             </>
           )}
+          <Link to="/client-leads">
+            <Button variant="outline" size="sm" className="gap-1.5 px-2.5 text-xs">
+              <Target className="h-3.5 w-3.5" /> Client Leads
+            </Button>
+          </Link>
+          <Link to="/client-calls">
+            <Button variant="outline" size="sm" className="gap-1.5 px-2.5 text-xs">
+              <Phone className="h-3.5 w-3.5" /> Client Calls
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -503,7 +529,6 @@ function WorkPage() {
           today={today}
           onToggleDone={toggleDone}
           onSetPriority={setPriority}
-          onToggleHold={toggleHold}
         />
       )}
 
@@ -518,19 +543,6 @@ function WorkPage() {
 
       {view === "tree" && (
         <>
-          <div className="flex flex-wrap gap-2">
-            <Link to="/client-leads">
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                <Target className="h-3.5 w-3.5" /> Client Leads
-              </Button>
-            </Link>
-            <Link to="/client-calls">
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                <Phone className="h-3.5 w-3.5" /> Client Calls
-              </Button>
-            </Link>
-          </div>
-
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 sm:flex-row">
             <Input
               value={newCompany}
@@ -736,7 +748,7 @@ function EditForm({
           rows={4}
           placeholder="Add any details, amounts, statuses…"
         />
-      </div>
+        </div>
       <div className="space-y-1">
         <Label>Priority</Label>
         <PriorityPicker value={priority} onChange={setPriority} />
@@ -868,6 +880,7 @@ function TreeLevel({
               onToggleDone={() => onToggleDone(n)}
               onSetPriority={(p) => onSetPriority(n, p)}
               effectiveDone={isNodeDone(n, today)}
+              today={today}
             >
               {!collapsed.has(n.id) && (
                 <TreeLevel
@@ -905,6 +918,7 @@ function NodeRow({
   onToggleDone,
   onSetPriority,
   effectiveDone,
+  today,
   children,
 }: {
   node: WorkNode;
@@ -918,6 +932,7 @@ function NodeRow({
   onToggleDone: () => void;
   onSetPriority: (p: Priority) => void;
   effectiveDone: boolean;
+  today: string;
   children?: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -932,6 +947,7 @@ function NodeRow({
   const Icon = meta.icon;
   const nextMeta = iconFor(depth + 1);
   const dueLine = formatDueLine(node);
+  const overdue = isOverdue(node.due_date, effectiveDone, today);
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -979,7 +995,9 @@ function NodeRow({
                 depth === 0 && "text-base font-semibold",
                 effectiveDone
                   ? "text-muted-foreground line-through"
-                  : priorityTextClass(node.priority),
+                  : overdue
+                    ? cn(OVERDUE_CLASS, "font-semibold")
+                    : priorityTextClass(node.priority),
               )}
             >
               {node.title}
@@ -992,9 +1010,19 @@ function NodeRow({
             <QuickPriorityMenu value={node.priority} onChange={(p) => onSetPriority(p)} />
           </div>
           {dueLine && (
-            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3 shrink-0" />
+            <p
+              className={cn(
+                "mt-1 flex items-center gap-1 text-xs",
+                overdue ? cn(OVERDUE_CLASS, "font-medium") : "text-muted-foreground",
+              )}
+            >
+              {overdue ? (
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+              ) : (
+                <Clock className="h-3 w-3 shrink-0" />
+              )}
               {dueLine}
+              {overdue && " · Overdue"}
             </p>
           )}
           {node.notes && (
@@ -1070,7 +1098,6 @@ function buildPendingLines(byParent: Map<string | null, WorkNode[]>, today: stri
   walk(null, []);
   return out;
 }
-
 /** Flatten the tree into leaf lines that ARE done. A done node's own children
  * aren't listed separately — the parent being done represents the whole subtree. */
 function buildCompletedLines(byParent: Map<string | null, WorkNode[]>, today: string): FlatLine[] {
@@ -1093,12 +1120,14 @@ function buildCompletedLines(byParent: Map<string | null, WorkNode[]>, today: st
 function GroupedLines({
   lines,
   checked,
+  today,
   onToggle,
   onSetPriority,
   onToggleHold,
 }: {
   lines: FlatLine[];
   checked: boolean;
+  today: string;
   onToggle: (n: WorkNode) => void;
   onSetPriority?: (n: WorkNode, p: Priority) => void;
   onToggleHold?: (n: WorkNode) => void;
@@ -1112,8 +1141,15 @@ function GroupedLines({
 
   return (
     <div className="space-y-4">
-      {[...groups.entries()].map(([companyId, items]) => {
-        const company = items[0].path[0];
+      {[...groups.entries()].map(([companyId, rawItems]) => {
+        const company = rawItems[0].path[0];
+        // Hidden items sink to the bottom so the visible/active ones are
+        // always together at the top of each group (stable within each half).
+        const items = [...rawItems].sort((a, b) => {
+          const ah = isEffectivelyHeld(a.leaf.held, a.leaf.held_until) ? 1 : 0;
+          const bh = isEffectivelyHeld(b.leaf.held, b.leaf.held_until) ? 1 : 0;
+          return ah - bh;
+        });
         return (
           <div key={companyId} className="rounded-2xl border border-border bg-card p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1123,8 +1159,9 @@ function GroupedLines({
             </div>
             <div className="space-y-1.5">
               {items.map(({ path, leaf }) => {
-                const isHeld = leaf.held;
+                const isHeld = isEffectivelyHeld(leaf.held, leaf.held_until);
                 const dueLine = formatDueLine(leaf);
+                const overdue = !checked && isOverdue(leaf.due_date, false, today);
                 return (
                   <div
                     key={path.map((p) => p.id).join(">")}
@@ -1156,7 +1193,7 @@ function GroupedLines({
                                     i > 0 && i < path.length - 1 && "text-muted-foreground",
                                     i === path.length - 1 &&
                                       !checked &&
-                                      priorityTextClass(n.priority),
+                                      (overdue ? OVERDUE_CLASS : priorityTextClass(n.priority)),
                                     checked &&
                                       i === path.length - 1 &&
                                       "line-through text-muted-foreground",
@@ -1168,9 +1205,21 @@ function GroupedLines({
                             ))}
                           </span>
                           {dueLine && (
-                            <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3 shrink-0" />
+                            <span
+                              className={cn(
+                                "mt-0.5 flex items-center gap-1 text-xs",
+                                overdue
+                                  ? cn(OVERDUE_CLASS, "font-medium")
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {overdue ? (
+                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                              ) : (
+                                <Clock className="h-3 w-3 shrink-0" />
+                              )}
                               {dueLine}
+                              {overdue && " · Overdue"}
                             </span>
                           )}
                         </>
@@ -1199,7 +1248,7 @@ function GroupedLines({
                           </>
                         ) : (
                           <>
-                            <EyeOff className="h-3.5 w-3.5" /> Hold
+                            <EyeOff className="h-3.5 w-3.5" /> Hide
                           </>
                         )}
                       </Button>
@@ -1215,40 +1264,150 @@ function GroupedLines({
   );
 }
 
+function HideUntilDialog({
+  open,
+  itemTitle,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  itemTitle: string;
+  onClose: () => void;
+  onConfirm: (untilIso: string | null) => void;
+}) {
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+
+  const confirm = () => {
+    let untilIso: string | null = null;
+    if (date) {
+      const t = time || "00:00";
+      const dt = new Date(`${date}T${t}:00`);
+      if (!Number.isNaN(dt.getTime())) untilIso = dt.toISOString();
+    }
+    onConfirm(untilIso);
+    setDate("");
+    setTime("");
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setDate("");
+          setTime("");
+          onClose();
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Hide "{itemTitle}"</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Leave both blank to hide indefinitely (until you tap Show yourself), or pick a date/time
+            to have it reappear on its own.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Show again on (optional)</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">At (optional)</Label>
+              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={confirm}>
+            <EyeOff className="mr-1.5 h-4 w-4" /> Hide
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PendingList({
   byParent,
   today,
   onToggleDone,
   onSetPriority,
-  onToggleHold,
 }: {
   byParent: Map<string | null, WorkNode[]>;
   today: string;
   onToggleDone: (n: WorkNode) => void;
   onSetPriority: (n: WorkNode, p: Priority) => void;
-  onToggleHold: (n: WorkNode) => void;
 }) {
   const lines = useMemo(() => buildPendingLines(byParent, today), [byParent, today]);
-  const heldCount = useMemo(() => lines.filter((l) => l.leaf.held).length, [lines]);
+  const heldCount = useMemo(
+    () => lines.filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until)).length,
+    [lines],
+  );
+
+  const updateNode = useUpdateWorkNode();
+  const unhideAllWork = useUnhideAllWorkNodes();
+  const unhideAllTasks = useUnhideAllTasks();
+  const [hidingNode, setHidingNode] = useState<WorkNode | null>(null);
+  const [hidingTask, setHidingTask] = useState<Task | null>(null);
+
+  const onToggleHoldNode = (n: WorkNode) => {
+    if (isEffectivelyHeld(n.held, n.held_until)) {
+      updateNode.mutate({ id: n.id, held: false, held_until: null });
+    } else {
+      setHidingNode(n);
+    }
+  };
 
   const { data: tasks = [] } = useTasks();
   const updateTask = useUpdateTask();
-  // Only show to-dos that are either undated or due today — anything with a
-  // past or future due date is left for its own day, so this list doesn't
-  // fill up with things that aren't actionable right now.
-  const pendingTasks = useMemo(
-    () => tasks.filter((t) => !t.done && (!t.due_date || t.due_date === today)),
-    [tasks, today],
-  );
+  // Only show to-dos that are undated, due today, or overdue (past due and
+  // not yet done — those need attention) — anything with a future due date
+  // is left for its own day, so this list doesn't fill up prematurely.
+  const pendingTasks = useMemo(() => {
+    const relevant = tasks.filter((t) => !t.done && (!t.due_date || t.due_date <= today));
+    // Hidden ones sink to the bottom, same as work items above.
+    return [...relevant].sort((a, b) => {
+      const ah = isEffectivelyHeld(a.held, a.held_until) ? 1 : 0;
+      const bh = isEffectivelyHeld(b.held, b.held_until) ? 1 : 0;
+      return ah - bh;
+    });
+  }, [tasks, today]);
+  const heldTaskCount = pendingTasks.filter((t) => isEffectivelyHeld(t.held, t.held_until)).length;
+
+  const totalHidden = heldCount + heldTaskCount;
+  const showAllHidden = () => {
+    const workIds = lines
+      .filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until))
+      .map((l) => l.leaf.id);
+    const taskIds = pendingTasks
+      .filter((t) => isEffectivelyHeld(t.held, t.held_until))
+      .map((t) => t.id);
+    if (workIds.length) unhideAllWork.mutate(workIds);
+    if (taskIds.length) unhideAllTasks.mutate(taskIds);
+  };
 
   const nothingPending = lines.length === 0 && pendingTasks.length === 0;
 
   return (
     <div className="space-y-4">
-      <div className="text-xs text-muted-foreground">
-        {lines.length} pending work {lines.length === 1 ? "item" : "items"}
-        {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
-        {heldCount > 0 && ` · ${heldCount} on hold (tap Show to reveal)`}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs text-muted-foreground">
+          {lines.length} pending work {lines.length === 1 ? "item" : "items"}
+          {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
+          {totalHidden > 0 && ` · ${totalHidden} hidden`}
+        </div>
+        {totalHidden > 0 && (
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={showAllHidden}>
+            <Eye className="h-3.5 w-3.5" /> Show all hidden ({totalHidden})
+          </Button>
+        )}
       </div>
 
       {nothingPending ? (
@@ -1259,9 +1418,10 @@ function PendingList({
         <GroupedLines
           lines={lines}
           checked={false}
+          today={today}
           onToggle={onToggleDone}
           onSetPriority={onSetPriority}
-          onToggleHold={onToggleHold}
+          onToggleHold={onToggleHoldNode}
         />
       )}
 
@@ -1273,61 +1433,103 @@ function PendingList({
             <span className="text-xs text-muted-foreground">· {pendingTasks.length} pending</span>
           </div>
           <div className="space-y-1.5">
-            {pendingTasks.map((t: Task) => (
-              <div
-                key={t.id}
-                onClick={() => updateTask.mutate({ id: t.id, done: true })}
-                className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30"
-              >
-                <Checkbox
-                  checked={false}
-                  onCheckedChange={() => updateTask.mutate({ id: t.id, done: true })}
-                  onClick={(e) => e.stopPropagation()}
-                  className="mt-0.5 shrink-0"
-                />
-                <div className="min-w-0 flex-1">
-                  {t.held ? (
-                    <span
-                      className="inline-block h-3.5 w-40 max-w-full rounded bg-muted-foreground/15"
-                      aria-label="Hidden"
-                    />
-                  ) : (
-                    <span className="break-words leading-snug">
-                      <span className="font-medium text-foreground">{t.title}</span>
-                      {(t.due_date || t.due_time) && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {t.due_date ?? ""}
-                          {t.due_time ? ` · ${t.due_time}` : ""}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateTask.mutate({ id: t.id, held: !t.held });
-                  }}
-                  className="shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+            {pendingTasks.map((t: Task) => {
+              const isHeld = isEffectivelyHeld(t.held, t.held_until);
+              const overdue = isOverdue(t.due_date, false, today);
+              return (
+                <div
+                  key={t.id}
+                  onClick={() => updateTask.mutate({ id: t.id, done: true })}
+                  className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30"
                 >
-                  {t.held ? (
-                    <>
-                      <Eye className="h-3.5 w-3.5" /> Show
-                    </>
-                  ) : (
-                    <>
-                      <EyeOff className="h-3.5 w-3.5" /> Hold
-                    </>
-                  )}
-                </Button>
-              </div>
-            ))}
+                  <Checkbox
+                    checked={false}
+                    onCheckedChange={() => updateTask.mutate({ id: t.id, done: true })}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-0.5 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    {isHeld ? (
+                      <span
+                        className="inline-block h-3.5 w-40 max-w-full rounded bg-muted-foreground/15"
+                        aria-label="Hidden"
+                      />
+                    ) : (
+                      <span className="break-words leading-snug">
+                        <span
+                          className={cn(
+                            "font-medium",
+                            overdue ? cn(OVERDUE_CLASS, "font-semibold") : "text-foreground",
+                          )}
+                        >
+                          {t.title}
+                        </span>
+                        {(t.due_date || t.due_time) && (
+                          <span
+                            className={cn(
+                              "ml-2 text-xs",
+                              overdue ? cn(OVERDUE_CLASS, "font-medium") : "text-muted-foreground",
+                            )}
+                          >
+                            {t.due_date ?? ""}
+                            {t.due_time ? ` · ${t.due_time}` : ""}
+                            {overdue && " · Overdue"}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isHeld) {
+                        updateTask.mutate({ id: t.id, held: false, held_until: null });
+                      } else {
+                        setHidingTask(t);
+                      }
+                    }}
+                    className="shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {isHeld ? (
+                      <>
+                        <Eye className="h-3.5 w-3.5" /> Show
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="h-3.5 w-3.5" /> Hide
+                      </>
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
+
+      <HideUntilDialog
+        open={!!hidingNode}
+        itemTitle={hidingNode?.title ?? ""}
+        onClose={() => setHidingNode(null)}
+        onConfirm={(untilIso) => {
+          if (hidingNode)
+            updateNode.mutate({ id: hidingNode.id, held: true, held_until: untilIso });
+          setHidingNode(null);
+        }}
+      />
+      <HideUntilDialog
+        open={!!hidingTask}
+        itemTitle={hidingTask?.title ?? ""}
+        onClose={() => setHidingTask(null)}
+        onConfirm={(untilIso) => {
+          if (hidingTask)
+            updateTask.mutate({ id: hidingTask.id, held: true, held_until: untilIso });
+          setHidingTask(null);
+        }}
+      />
     </div>
   );
 }
@@ -1369,6 +1571,7 @@ function CompletedList({
       <GroupedLines
         lines={lines}
         checked={true}
+        today={today}
         onToggle={onToggleDone}
         onSetPriority={onSetPriority}
       />

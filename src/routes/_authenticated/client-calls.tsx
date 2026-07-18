@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Clock, ArrowLeft, PhoneCall } from "lucide-react";
+import { Plus, Pencil, Trash2, Clock, AlertTriangle, ArrowLeft, PhoneCall } from "lucide-react";
 import { PageHeader, RowActions } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,18 +20,24 @@ import {
   useDeleteClientCall,
   type ClientCall,
 } from "@/features/client-calls-db";
+import { todayKey } from "@/lib/storage";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/client-calls")({
   ssr: false,
   component: ClientCallsPage,
 });
 
+const OVERDUE_CLASS = "text-fuchsia-600 dark:text-fuchsia-400";
+
 function formatDue(c: { due_date: string | null; due_time: string | null }): string | null {
   if (!c.due_date && !c.due_time) return null;
   const parts: string[] = [];
   if (c.due_date) {
     const d = new Date(c.due_date + "T00:00:00");
-    parts.push(d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }));
+    parts.push(
+      d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }),
+    );
   }
   if (c.due_time) {
     const [h, m] = c.due_time.split(":");
@@ -69,7 +75,8 @@ function ClientCallsPage() {
           <ArrowLeft className="h-3.5 w-3.5" /> Work & Projects
         </Button>
       </Link>
-{calls.length === 0 ? (
+
+     {calls.length === 0 ? (
   <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
     No contacts yet. Add one to get started.
   </div>
@@ -77,20 +84,24 @@ function ClientCallsPage() {
   <ul className="space-y-2">
     {calls.map((c) => {
       const due = formatDue(c);
+      const overdue = !!c.due_date && c.due_date < todayKey();
 
       return (
         <li
           key={c.id}
           className="flex items-start gap-3 rounded-xl border border-border bg-card p-3"
         >
-          {/* Phone Icon */}
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
             <PhoneCall className="h-4 w-4" />
           </div>
 
-          {/* Contact Details */}
           <div className="min-w-0 flex-1">
-            <p className="break-words text-sm font-medium">
+            <p
+              className={cn(
+                "break-words text-sm font-medium",
+                overdue && cn(OVERDUE_CLASS, "font-semibold")
+              )}
+            >
               {c.name}
             </p>
 
@@ -102,9 +113,21 @@ function ClientCallsPage() {
             </a>
 
             {due && (
-              <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3 shrink-0" />
+              <span
+                className={cn(
+                  "mt-0.5 flex items-center gap-1 text-xs",
+                  overdue
+                    ? cn(OVERDUE_CLASS, "font-medium")
+                    : "text-muted-foreground"
+                )}
+              >
+                {overdue ? (
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                ) : (
+                  <Clock className="h-3 w-3 shrink-0" />
+                )}
                 {due}
+                {overdue && " · Overdue"}
               </span>
             )}
 
@@ -115,7 +138,6 @@ function ClientCallsPage() {
             )}
           </div>
 
-          {/* Actions */}
           <RowActions
             actions={[
               {
@@ -136,7 +158,6 @@ function ClientCallsPage() {
     })}
   </ul>
 )}
-      
 
       <CallFormDialog
         open={open}
@@ -144,7 +165,10 @@ function ClientCallsPage() {
         initial={null}
         onClose={() => setOpen(false)}
         onSubmit={(patch) => {
-          create.mutate({ ...patch, sort_order: calls.length }, { onSuccess: () => setOpen(false) });
+          create.mutate(
+            { ...patch, sort_order: calls.length },
+            { onSuccess: () => setOpen(false) },
+          );
         }}
       />
 
@@ -220,7 +244,12 @@ function CallFormDialog({
         <div className="space-y-3">
           <div className="space-y-1">
             <Label>Name</Label>
-            <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sanjai" />
+            <Input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Sanjai"
+            />
           </div>
           <div className="space-y-1">
             <Label>Phone number</Label>

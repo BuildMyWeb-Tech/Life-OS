@@ -12,6 +12,7 @@ export type Task = {
   end_date: string | null;
   done: boolean;
   held: boolean;
+  held_until: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -93,6 +94,7 @@ export function useUpdateTask() {
       end_date?: string | null;
       done?: boolean;
       held?: boolean;
+      held_until?: string | null;
     }) => {
       const { id, ...patch } = input;
       const { error } = await table().update(patch).eq("id", id);
@@ -109,6 +111,21 @@ export function useDeleteTask() {
     mutationFn: async (id: string) => {
       const { error } = await table().delete().eq("id", id);
       if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Bulk-unhide: clear held + held_until for a set of tasks at once. */
+export function useUnhideAllTasks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        const { error } = await table().update({ held: false, held_until: null }).eq("id", id);
+        if (error) throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
     onError: (e: Error) => toast.error(e.message),

@@ -8,6 +8,7 @@ import {
   Trash2,
   Pencil,
   Calendar as CalendarIcon,
+  AlertTriangle,
   Clock,
   ChevronRight,
   ChevronLeft,
@@ -113,6 +114,14 @@ function formatRange(task: Task): string | null {
   if (task.start_date && task.end_date) return `${fmt(task.start_date)} → ${fmt(task.end_date)}`;
   if (task.start_date) return `From ${fmt(task.start_date)}`;
   return `Until ${fmt(task.end_date!)}`;
+}
+
+/** A distinct color (separate from anything else on the row) for a task
+ * whose due date has passed and isn't done yet. */
+const OVERDUE_CLASS = "text-fuchsia-600 dark:text-fuchsia-400";
+
+function isTaskOverdue(task: Task): boolean {
+  return !task.done && !!task.due_date && task.due_date < todayKey();
 }
 
 function TasksPage() {
@@ -597,6 +606,7 @@ function TaskRow({
   const toggleSubtask = useToggleSubtask();
   const due = formatDue(task);
   const range = formatRange(task);
+  const overdue = isTaskOverdue(task);
   const hasSubtasks = subtasks.length > 0;
   const subDone = subtasks.filter((s) => s.done).length;
   const subPct = hasSubtasks ? Math.round((subDone / subtasks.length) * 100) : 0;
@@ -622,15 +632,28 @@ function TaskRow({
           <p
             className={cn(
               "break-words text-sm font-medium",
-              task.done && "line-through text-muted-foreground",
+              task.done
+                ? "line-through text-muted-foreground"
+                : overdue && cn(OVERDUE_CLASS, "font-semibold"),
             )}
           >
             {task.title}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {due && (
-              <span className="flex items-center gap-1">
-                <CalendarIcon className="h-3 w-3" /> {due}
+              <span
+                className={cn(
+                  "flex items-center gap-1",
+                  overdue && cn(OVERDUE_CLASS, "font-medium"),
+                )}
+              >
+                {overdue ? (
+                  <AlertTriangle className="h-3 w-3" />
+                ) : (
+                  <CalendarIcon className="h-3 w-3" />
+                )}{" "}
+                {due}
+                {overdue && " · Overdue"}
               </span>
             )}
             {range && (
@@ -658,10 +681,7 @@ function TaskRow({
                     className="h-4 w-4"
                   />
                   <span
-                    className={cn(
-                      "flex-1 text-xs",
-                      s.done && "text-muted-foreground line-through",
-                    )}
+                    className={cn("flex-1 text-xs", s.done && "text-muted-foreground line-through")}
                   >
                     {s.title}
                   </span>

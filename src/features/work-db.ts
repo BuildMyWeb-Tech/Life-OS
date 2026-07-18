@@ -15,6 +15,7 @@ export type WorkNode = {
   task_kind: "recurring" | "one_time";
   priority: "low" | "medium" | "high" | null;
   held: boolean;
+  held_until: string | null;
   due_date: string | null;
   due_time: string | null;
   created_at: string;
@@ -92,6 +93,7 @@ export function useUpdateWorkNode() {
       task_kind?: "recurring" | "one_time";
       priority?: "low" | "medium" | "high" | null;
       held?: boolean;
+      held_until?: string | null;
       due_date?: string | null;
       due_time?: string | null;
     }) => {
@@ -154,6 +156,25 @@ export function useResetAllWorkNodes() {
       qc.invalidateQueries({ queryKey: QK });
       toast.success("All work reset to pending");
     },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Bulk-unhide: clear held + held_until for a set of nodes at once. */
+export function useUnhideAllWorkNodes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        const { error } = await supabase
+          .from("lifeos_work_nodes")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .update({ held: false, held_until: null } as any)
+          .eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
     onError: (e: Error) => toast.error(e.message),
   });
 }

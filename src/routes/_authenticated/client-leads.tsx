@@ -5,6 +5,7 @@ import {
   Pencil,
   Trash2,
   Clock,
+  AlertTriangle,
   ArrowLeft,
   ListPlus,
   Building2,
@@ -39,6 +40,7 @@ import {
   type ClientLead,
 } from "@/features/client-leads-db";
 import { cn } from "@/lib/utils";
+import { todayKey } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/client-leads")({
   ssr: false,
@@ -51,12 +53,16 @@ const PRIORITY_TEXT: Record<string, string> = {
   high: "text-red-600 dark:text-red-400",
 };
 
+const OVERDUE_CLASS = "text-fuchsia-600 dark:text-fuchsia-400";
+
 function formatDue(l: { due_date: string | null; due_time: string | null }): string | null {
   if (!l.due_date && !l.due_time) return null;
   const parts: string[] = [];
   if (l.due_date) {
     const d = new Date(l.due_date + "T00:00:00");
-    parts.push(d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }));
+    parts.push(
+      d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }),
+    );
   }
   if (l.due_time) {
     const [h, m] = l.due_time.split(":");
@@ -165,6 +171,7 @@ function ClientLeadsPage() {
               <div className="space-y-1.5">
                 {items.map((l) => {
                   const due = formatDue(l);
+                  const overdue = !l.completed && !!l.due_date && l.due_date < todayKey();
                   return (
                     <div
                       key={l.id}
@@ -181,17 +188,29 @@ function ClientLeadsPage() {
                             "break-words font-medium leading-snug",
                             l.completed
                               ? "text-muted-foreground line-through"
-                              : l.priority
-                                ? PRIORITY_TEXT[l.priority]
-                                : "text-foreground",
+                              : overdue
+                                ? cn(OVERDUE_CLASS, "font-semibold")
+                                : l.priority
+                                  ? PRIORITY_TEXT[l.priority]
+                                  : "text-foreground",
                           )}
                         >
                           {l.name}
                         </p>
                         {due && (
-                          <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3 shrink-0" />
+                          <span
+                            className={cn(
+                              "mt-0.5 flex items-center gap-1 text-xs",
+                              overdue ? cn(OVERDUE_CLASS, "font-medium") : "text-muted-foreground",
+                            )}
+                          >
+                            {overdue ? (
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                            ) : (
+                              <Clock className="h-3 w-3 shrink-0" />
+                            )}
                             {due}
+                            {overdue && " · Overdue"}
                           </span>
                         )}
                         {l.notes && (
