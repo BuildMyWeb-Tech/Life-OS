@@ -510,7 +510,7 @@ function WorkPage() {
               </Button>
             </>
           )}
-          <Link to="/client-leads">
+          {/* <Link to="/client-leads">
             <Button variant="outline" size="sm" className="gap-1.5 px-2.5 text-xs">
               <Target className="h-3.5 w-3.5" /> Client Leads
             </Button>
@@ -519,7 +519,7 @@ function WorkPage() {
             <Button variant="outline" size="sm" className="gap-1.5 px-2.5 text-xs">
               <Phone className="h-3.5 w-3.5" /> Client Calls
             </Button>
-          </Link>
+          </Link> */}
         </div>
       </div>
 
@@ -1219,7 +1219,7 @@ function GroupedLines({
                                 <Clock className="h-3 w-3 shrink-0" />
                               )}
                               {dueLine}
-                              {overdue && " · Overdue"}
+                              {/* {overdue && " · Overdue"} */}
                             </span>
                           )}
                         </>
@@ -1244,11 +1244,13 @@ function GroupedLines({
                       >
                         {isHeld ? (
                           <>
-                            <Eye className="h-3.5 w-3.5" /> Show
+                            <Eye className="h-3.5 w-3.5" /> 
+                            {/* Show */}
                           </>
                         ) : (
                           <>
-                            <EyeOff className="h-3.5 w-3.5" /> Hide
+                            <EyeOff className="h-3.5 w-3.5" />
+                             {/* Hide */}
                           </>
                         )}
                       </Button>
@@ -1398,16 +1400,17 @@ function PendingList({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs text-muted-foreground">
-          {lines.length} pending work {lines.length === 1 ? "item" : "items"}
-          {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
-          {totalHidden > 0 && ` · ${totalHidden} hidden`}
-        </div>
         {totalHidden > 0 && (
           <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={showAllHidden}>
             <Eye className="h-3.5 w-3.5" /> Show all hidden ({totalHidden})
           </Button>
         )}
+        <div className="text-xs text-muted-foreground">
+          {lines.length} pending work {lines.length === 1 ? "item" : "items"}
+          {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
+          {totalHidden > 0 && ` · ${totalHidden} hidden`}
+        </div>
+        
       </div>
 
       {nothingPending ? (
