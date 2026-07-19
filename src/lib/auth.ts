@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureAdminAccount } from "./admin-auth.functions";
 import { registerUser } from "./register.functions";
@@ -91,6 +92,22 @@ export async function logout() {
 export function isAuthed() {
   if (typeof window === "undefined") return false;
   return localStorage.getItem(KEY) === "1";
+}
+
+/** The signed-in user's display name, for greetings ("Good Morning, Rohit").
+ * Falls back to the email's local part, then to nothing. */
+export function useCurrentUsername() {
+  return useQuery({
+    queryKey: ["lifeos", "current-username"],
+    queryFn: async (): Promise<string> => {
+      const { data } = await supabase.auth.getUser();
+      const meta = data.user?.user_metadata as { username?: string } | undefined;
+      if (meta?.username) return meta.username;
+      const email = data.user?.email ?? "";
+      return email.split("@")[0] || "";
+    },
+    staleTime: Infinity,
+  });
 }
 
 export function clearLocalAuth() {

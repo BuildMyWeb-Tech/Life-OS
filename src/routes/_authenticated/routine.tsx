@@ -55,7 +55,6 @@ import {
   useDeleteRoutineItem,
   useReorderRoutineItems,
   useToggleRoutine,
-  useEnsureDefaultRoutine,
   routineLogIndex,
   isRoutineDone,
   type RoutineItem,
@@ -106,7 +105,8 @@ function RoutinePage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [filter, setFilter] = useState<RoutineFilter>(loadRoutineFilter);
 
-  const { data: items = [], isFetched } = useRoutineItems();
+  // const { data: items = [], isFetched } = useRoutineItems();
+  const { data: items = [] } = useRoutineItems();
   const { data: logs = [] } = useRoutineLogs(selectedDate, selectedDate);
   const create = useCreateRoutineItem();
   const update = useUpdateRoutineItem();
@@ -114,7 +114,7 @@ function RoutinePage() {
   const reorder = useReorderRoutineItems();
   const toggleRoutine = useToggleRoutine();
 
-  useEnsureDefaultRoutine(items, isFetched);
+  // useEnsureDefaultRoutine(items, isFetched);
 
   const { data: habits = [] } = useHabits();
   const { data: habitLogs = [] } = useHabitLogs(selectedDate, selectedDate);

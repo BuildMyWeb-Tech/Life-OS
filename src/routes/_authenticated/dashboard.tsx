@@ -1,15 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import {
-  Activity,
-  Ban,
-  Flame,
-  ListChecks,
-  TrendingUp,
-  Trophy,
-  Quote,
-} from "lucide-react";
+import { Activity, Ban, Flame, ListChecks, TrendingUp, Trophy, Quote } from "lucide-react";
 import { useMemo } from "react";
+import { useCurrentUsername } from "@/lib/auth";
 import { todayKey, daysAgo } from "@/lib/storage";
 import { PageHeader, StatCard } from "@/components/ui-bits";
 import { Progress } from "@/components/ui/progress";
@@ -44,6 +37,7 @@ function greeting() {
 function Dashboard() {
   const today = todayKey();
   const from30 = daysAgo(29);
+  const { data: username = "" } = useCurrentUsername();
 
   const { data: allHabits = [] } = useHabits();
   const positiveHabits = allHabits.filter((h) => h.kind === "positive");
@@ -62,24 +56,25 @@ function Dashboard() {
   const habitsDone = positiveHabits.filter((h) => isDone(habitSet, h.id, today)).length;
   const avoidedToday = negativeHabits.filter((h) => isDone(habitSet, h.id, today)).length;
 
-  // Combined progress: positive habits + avoid list (negatives)
+  // Combined progress: positive habits + avoid list (negatives).
+  // Only counts a habit on days on/after it was actually created — otherwise
+  // a habit added yesterday would count as "missed" for the prior 29 days
+  // and drag the weekly/monthly % down incorrectly.
   const { weeklyPct, monthlyPct } = useMemo(() => {
     const calc = (n: number) => {
-      const totalHabits = positiveHabits.length + negativeHabits.length;
-      if (!totalHabits) return 0;
       const days = Array.from({ length: n }, (_, i) => daysAgo(i));
       let done = 0;
       let total = 0;
-      days.forEach((d) => {
-        positiveHabits.forEach((h) => {
+      const tally = (h: (typeof positiveHabits)[number]) => {
+        const createdKey = h.created_at.slice(0, 10);
+        days.forEach((d) => {
+          if (d < createdKey) return; // habit didn't exist yet on this day
           total++;
           if (isDone(habitSet, h.id, d)) done++;
         });
-        negativeHabits.forEach((h) => {
-          total++;
-          if (isDone(habitSet, h.id, d)) done++;
-        });
-      });
+      };
+      positiveHabits.forEach(tally);
+      negativeHabits.forEach(tally);
       return total ? Math.round((done / total) * 100) : 0;
     };
     return { weeklyPct: calc(7), monthlyPct: calc(30) };
@@ -95,13 +90,20 @@ function Dashboard() {
     let cur = 0;
     let lon = 0;
     let run = 0;
-    const total = positiveHabits.length + negativeHabits.length;
-    const threshold = Math.max(1, Math.floor(total * 0.6));
     for (let i = 0; i < 30; i++) {
       const d = daysAgo(i);
+      const existingPos = positiveHabits.filter((h) => h.created_at.slice(0, 10) <= d);
+      const existingNeg = negativeHabits.filter((h) => h.created_at.slice(0, 10) <= d);
+      const totalExisting = existingPos.length + existingNeg.length;
+      if (totalExisting === 0) {
+        if (i === 0) cur = 0;
+        run = 0;
+        continue;
+      }
+      const threshold = Math.max(1, Math.floor(totalExisting * 0.6));
       const c =
-        positiveHabits.filter((h) => isDone(habitSet, h.id, d)).length +
-        negativeHabits.filter((h) => isDone(habitSet, h.id, d)).length;
+        existingPos.filter((h) => isDone(habitSet, h.id, d)).length +
+        existingNeg.filter((h) => isDone(habitSet, h.id, d)).length;
       if (c >= threshold) {
         run++;
         if (i === 0 || cur === i) cur = run;
@@ -119,34 +121,10 @@ function Dashboard() {
   const pendingHabits = positiveHabits.length - habitsDone;
   const pendingAvoid = negativeHabits.length - avoidedToday;
 
-  // Per-habit rate for advanced dashboard
-  const perHabit = useMemo(() => {
-    const rows = positiveHabits.map((h) => {
-      let done = 0;
-      let cur = 0;
-      let lon = 0;
-      let run = 0;
-      for (let i = 0; i < 30; i++) {
-        const d = daysAgo(i);
-        if (isDone(habitSet, h.id, d)) {
-          done++;
-          run++;
-          if (i === 0 || cur === i) cur = run;
-          lon = Math.max(lon, run);
-        } else {
-          if (i === 0) cur = 0;
-          run = 0;
-        }
-      }
-      return { h, done, total: 30, rate: Math.round((done / 30) * 100), current: cur, longest: lon };
-    });
-    return rows.sort((a, b) => b.rate - a.rate);
-  }, [positiveHabits, habitSet]);
-
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <PageHeader
-        title={`${greeting()}, AK 👋`}
+        title={`${greeting()}${username ? `, ${username}` : ""} 👋`}
         subtitle="Here's your life dashboard for today."
       />
 
@@ -198,48 +176,6 @@ function Dashboard() {
           <ProgressRow label="This Month" value={monthlyPct} />
         </div>
       </div>
-
-      {/* Advanced per-habit dashboard */}
-      {perHabit.length > 0 && (
-        <div className="mt-6 glass rounded-2xl p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Habit Follow-Rate · Last 30 days</h2>
-            <span className="text-xs text-muted-foreground">Rate · Streak · Longest</span>
-          </div>
-          <div className="space-y-3">
-            {perHabit.map(({ h, done, total, rate, current, longest }) => {
-              const tier =
-                rate >= 80 ? "best" : rate >= 50 ? "medium" : "worst";
-              const tierColor =
-                tier === "best"
-                  ? "text-[color:var(--success)]"
-                  : tier === "medium"
-                    ? "text-[color:var(--warning)]"
-                    : "text-red-400";
-              return (
-                <div key={h.id} className="rounded-xl bg-secondary/30 p-3">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span>{h.emoji}</span>
-                      <span className="truncate text-sm font-medium">{h.name}</span>
-                      <span className={`shrink-0 text-[10px] font-semibold uppercase ${tierColor}`}>
-                        {tier}
-                      </span>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3 text-xs tabular-nums">
-                      <span className="text-muted-foreground">{done}/{total}</span>
-                      <span className="text-[color:var(--warning)]">🔥 {current}d</span>
-                      <span className="text-muted-foreground">max {longest}d</span>
-                      <span className="w-10 text-right font-semibold">{rate}%</span>
-                    </div>
-                  </div>
-                  <Progress value={rate} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="mt-6 glass relative overflow-hidden rounded-2xl p-6">
         <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[var(--gradient-glow)]" />

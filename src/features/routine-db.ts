@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { DEFAULT_ROUTINE } from "./routine-types";
 
 export type RoutineItem = {
   id: string;
@@ -158,58 +156,4 @@ export function routineLogIndex(logs: RoutineLog[] | undefined) {
 
 export function isRoutineDone(set: Set<string>, itemId: string, date: string) {
   return set.has(`${itemId}|${date}`);
-}
-
-/**
- * One-shot seed: if the user has no routine items yet, insert the DEFAULT_ROUTINE
- * items into the DB. Also migrates legacy localStorage routine if present.
- */
-export function useEnsureDefaultRoutine(items: RoutineItem[] | undefined, ready: boolean) {
-  const qc = useQueryClient();
-  const ran = useRef(false);
-  useEffect(() => {
-    if (!ready || ran.current) return;
-    if (!items || items.length > 0) return;
-    ran.current = true;
-    (async () => {
-      // try migrating localStorage first
-      let seed: { title: string; time: string | null; notes: string | null; sort_order: number }[] =
-        [];
-      try {
-        const raw = typeof window !== "undefined" ? localStorage.getItem("lifeos:routine") : null;
-        if (raw) {
-          const parsed = JSON.parse(raw) as {
-            items?: { title: string; time?: string; notes?: string }[];
-          };
-          if (parsed.items?.length) {
-            seed = parsed.items.map((it, i) => ({
-              title: it.title,
-              time: it.time ?? null,
-              notes: it.notes ?? null,
-              sort_order: i,
-            }));
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-      if (!seed.length) {
-        seed = DEFAULT_ROUTINE.items.map((it, i) => ({
-          title: it.title,
-          time: it.time ?? null,
-          notes: null,
-          sort_order: i,
-        }));
-      }
-      const { error } = await supabase.from("lifeos_routine_items").insert(seed);
-      if (!error) {
-        try {
-          localStorage.removeItem("lifeos:routine");
-        } catch {
-          /* ignore */
-        }
-        qc.invalidateQueries({ queryKey: QK.items });
-      }
-    })();
-  }, [items, ready, qc]);
 }

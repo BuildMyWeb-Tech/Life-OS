@@ -1166,7 +1166,7 @@ function GroupedLines({
                   <div
                     key={path.map((p) => p.id).join(">")}
                     onClick={() => onToggle(leaf)}
-                    className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30"
+                    className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-xs sm:text-sm hover:bg-accent/30"
                   >
                     <Checkbox
                       checked={checked}
@@ -1443,7 +1443,7 @@ function PendingList({
                 <div
                   key={t.id}
                   onClick={() => updateTask.mutate({ id: t.id, done: true })}
-                  className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30"
+                  className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-xs sm:text-sm hover:bg-accent/30"
                 >
                   <Checkbox
                     checked={false}
