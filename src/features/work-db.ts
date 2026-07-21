@@ -16,6 +16,7 @@ export type WorkNode = {
   priority: "low" | "medium" | "high" | null;
   held: boolean;
   held_until: string | null;
+  completed_at: string | null;
   due_date: string | null;
   due_time: string | null;
   created_at: string;
@@ -94,6 +95,9 @@ export function useUpdateWorkNode() {
       priority?: "low" | "medium" | "high" | null;
       held?: boolean;
       held_until?: string | null;
+      completed_at?: string | null;
+      parent_id?: string | null;
+      sort_order?: number;
       due_date?: string | null;
       due_time?: string | null;
     }) => {

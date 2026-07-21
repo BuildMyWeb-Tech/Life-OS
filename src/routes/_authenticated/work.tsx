@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
@@ -35,6 +35,8 @@ import {
   ArrowLeft,
   RotateCcw,
   AlertTriangle,
+  FolderInput,
+  ListPlus,
   Target,
   Phone,
 } from "lucide-react";
@@ -205,11 +207,12 @@ function formatDueLine(n: { due_date: string | null; due_time: string | null }):
   return parts.join(" · ");
 }
 
-/** A node counts as "done" only for today's date — it resets automatically
- * once done_on stops matching today. (One-time tasks never actually reach
- * this state for long: marking one done deletes it outright — see
- * toggleDone below — so this only really matters for recurring items.) */
+/** A recurring node counts as "done" only for today's date — it resets
+ * automatically once done_on stops matching today. A one-time node, once
+ * marked done, stays done (doesn't reset) until the 24h grace-period sweep
+ * removes it — see the cleanup effect in WorkPage and toggleDone below. */
 function isNodeDone(n: WorkNode, today: string) {
+  if (n.task_kind === "one_time") return n.done;
   return n.done && n.done_on === today;
 }
 
@@ -263,6 +266,8 @@ function WorkPage() {
 
   const [newCompany, setNewCompany] = useState("");
   const [editing, setEditing] = useState<WorkNode | null>(null);
+const [movingNode, setMovingNode] = useState<WorkNode | null>(null);
+const [quickAddOpen, setQuickAddOpen] = useState(false);  
   const [addingUnder, setAddingUnder] = useState<{ parent: WorkNode | null; depth: number } | null>(
     null,
   );
@@ -288,7 +293,27 @@ function WorkPage() {
       localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...s]));
     } catch {}
   };
-  const today = logicalTodayKey();
+const today = logicalTodayKey();
+
+// Sweep: any one-time item that's been done for 24h+ gets removed for
+// good. Runs on load and every 5 minutes while the app is open.
+useEffect(() => {
+  const sweep = () => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    nodes
+      .filter(
+        (n) =>
+          n.task_kind === "one_time" &&
+          n.done &&
+          n.completed_at &&
+          new Date(n.completed_at).getTime() < cutoff,
+      )
+      .forEach((n) => del.mutate(n.id));
+  };
+  sweep();
+  const iv = window.setInterval(sweep, 5 * 60 * 1000);
+  return () => window.clearInterval(iv);
+}, [nodes, del]);
 
   const [view, setView] = useState<ViewMode>(loadView);
   const changeView = (v: ViewMode) => {
@@ -367,23 +392,41 @@ function WorkPage() {
   };
 
   const toggleDone = (n: WorkNode) => {
-    const currentlyDone = isNodeDone(n, today);
-    // One-time item: marking it done removes it (and its children) entirely —
-    // it should not linger struck-through like a recurring item.
-    if (!currentlyDone && n.task_kind === "one_time") {
-      del.mutate(n.id, { onSuccess: () => toast.success("Completed & removed") });
-      return;
-    }
+  const currentlyDone = isNodeDone(n, today);
+  const nowDone = !currentlyDone;
+  if (n.task_kind === "one_time") {
+    // One-time item: mark done and stamp completed_at. It stays visible
+    // (in Completed Works) for 24h, then the sweep effect below removes
+    // it automatically — see also the un-done branch, which clears the
+    // stamp if you toggle it back within that window.
     update.mutate({
       id: n.id,
-      done: !currentlyDone,
-      done_on: !currentlyDone ? today : null,
+      done: nowDone,
+      done_on: nowDone ? today : null,
+      completed_at: nowDone ? new Date().toISOString() : null,
     });
-  };
+    return;
+  }
+  update.mutate({
+    id: n.id,
+    done: nowDone,
+    done_on: nowDone ? today : null,
+  });
+};
 
-  const setPriority = (n: WorkNode, p: Priority) => {
-    update.mutate({ id: n.id, priority: p });
-  };
+ const setPriority = (n: WorkNode, p: Priority) => {
+  update.mutate({ id: n.id, priority: p });
+};
+
+const moveNode = (newParentId: string | null) => {
+  if (!movingNode) return;
+  const siblings = byParent.get(newParentId) ?? [];
+  update.mutate(
+    { id: movingNode.id, parent_id: newParentId, sort_order: siblings.length },
+    { onSuccess: () => toast.success("Moved") },
+  );
+  setMovingNode(null);
+};
 
   const doneCount = nodes.filter((n) => isNodeDone(n, today)).length;
   const pendingCount = useMemo(() => buildPendingLines(byParent, today).length, [byParent, today]);
@@ -550,10 +593,18 @@ function WorkPage() {
               placeholder="Add company (e.g. KCT, BMW, Pivot Marketing)"
               onKeyDown={(e) => e.key === "Enter" && addCompany()}
             />
-            <Button onClick={addCompany} className="gap-2">
-              <Plus className="h-4 w-4" /> Add Company
-            </Button>
-          </div>
+           <Button onClick={addCompany} className="gap-2">
+  <Plus className="h-4 w-4" /> Add Company
+</Button>
+</div>
+
+<Button
+  variant="outline"
+  className="gap-2"
+  onClick={() => setQuickAddOpen(true)}
+>
+  <ListPlus className="h-4 w-4" /> Quick Add (Company → Category → Work → Task)
+</Button>
 
           <div className="space-y-3">
             {roots.length === 0 && (
@@ -562,28 +613,29 @@ function WorkPage() {
               </div>
             )}
 
-            <TreeLevel
-              parentId={null}
-              depth={0}
-              byParent={byParent}
-              collapsed={collapsed}
-              onToggleCollapse={toggleCollapse}
-              onAddChild={(parent, depth) => {
-                setAddingUnder({ parent, depth });
-                setAddTitle("");
-              }}
-              onEdit={setEditing}
-              onDelete={(n) => {
-                if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
-              }}
-              onToggleDone={toggleDone}
-              onSetPriority={setPriority}
-              today={today}
-              onReorderSiblings={(parent_id, ids) => {
-                const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
-                reorder.mutate(rows);
-              }}
-            />
+           <TreeLevel
+  parentId={null}
+  depth={0}
+  byParent={byParent}
+  collapsed={collapsed}
+  onToggleCollapse={toggleCollapse}
+  onAddChild={(parent, depth) => {
+    setAddingUnder({ parent, depth });
+    setAddTitle("");
+  }}
+  onEdit={setEditing}
+  onDelete={(n) => {
+    if (confirm(`Delete "${n.title}" and everything under it?`)) del.mutate(n.id);
+  }}
+  onMove={setMovingNode}
+  onToggleDone={toggleDone}
+  onSetPriority={setPriority}
+  today={today}
+  onReorderSiblings={(parent_id, ids) => {
+    const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
+    reorder.mutate(rows);
+  }}
+/>
           </div>
         </>
       )}
@@ -650,7 +702,7 @@ function WorkPage() {
               <p className="text-xs text-muted-foreground">
                 {addKind === "recurring"
                   ? "Resets to uncompleted each day."
-                  : "Removed automatically once marked done."}
+                  : "Stays for 24 hours after being marked done, then removed automatically."}
               </p>
               <div className="grid grid-cols-2 gap-2 pt-2">
                 <div className="space-y-1">
@@ -708,10 +760,24 @@ function WorkPage() {
               }}
             />
           )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+       </DialogContent>
+</Dialog>
+
+<MoveDialog
+  node={movingNode}
+  byParent={byParent}
+  onClose={() => setMovingNode(null)}
+  onMove={moveNode}
+/>
+
+<QuickAddDialog
+  open={quickAddOpen}
+  byParent={byParent}
+  create={create}
+  onClose={() => setQuickAddOpen(false)}
+/>
+</div>
+);
 }
 
 function EditForm({
@@ -818,6 +884,7 @@ function TreeLevel({
   onAddChild,
   onEdit,
   onDelete,
+  onMove,
   onToggleDone,
   onSetPriority,
   onReorderSiblings,
@@ -831,6 +898,7 @@ function TreeLevel({
   onAddChild: (parent: WorkNode | null, depth: number) => void;
   onEdit: (n: WorkNode) => void;
   onDelete: (n: WorkNode) => void;
+  onMove: (n: WorkNode) => void;
   onToggleDone: (n: WorkNode) => void;
   onSetPriority: (n: WorkNode, p: Priority) => void;
   onReorderSiblings: (parent_id: string | null, ids: string[]) => void;
@@ -875,24 +943,26 @@ function TreeLevel({
               collapsedOpen={!collapsed.has(n.id)}
               onToggleCollapse={() => onToggleCollapse(n.id)}
               onAddChild={() => onAddChild(n, depth + 1)}
-              onEdit={() => onEdit(n)}
-              onDelete={() => onDelete(n)}
-              onToggleDone={() => onToggleDone(n)}
-              onSetPriority={(p) => onSetPriority(n, p)}
-              effectiveDone={isNodeDone(n, today)}
-              today={today}
-            >
-              {!collapsed.has(n.id) && (
-                <TreeLevel
-                  parentId={n.id}
-                  depth={depth + 1}
-                  byParent={byParent}
-                  collapsed={collapsed}
-                  onToggleCollapse={onToggleCollapse}
-                  onAddChild={onAddChild}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onToggleDone={onToggleDone}
+            onEdit={() => onEdit(n)}
+onDelete={() => onDelete(n)}
+onMove={() => onMove(n)}
+onToggleDone={() => onToggleDone(n)}
+onSetPriority={(p) => onSetPriority(n, p)}
+effectiveDone={isNodeDone(n, today)}
+today={today}
+>
+{!collapsed.has(n.id) && (
+  <TreeLevel
+    parentId={n.id}
+    depth={depth + 1}
+    byParent={byParent}
+    collapsed={collapsed}
+    onToggleCollapse={onToggleCollapse}
+    onAddChild={onAddChild}
+    onEdit={onEdit}
+    onDelete={onDelete}
+    onMove={onMove}
+    onToggleDone={onToggleDone}
                   onSetPriority={onSetPriority}
                   onReorderSiblings={onReorderSiblings}
                   today={today}
@@ -915,6 +985,7 @@ function NodeRow({
   onAddChild,
   onEdit,
   onDelete,
+  onMove,
   onToggleDone,
   onSetPriority,
   effectiveDone,
@@ -929,6 +1000,7 @@ function NodeRow({
   onAddChild: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onMove: () => void;
   onToggleDone: () => void;
   onSetPriority: (p: Priority) => void;
   effectiveDone: boolean;
@@ -1034,41 +1106,31 @@ function NodeRow({
         </div>
 
         {/* Desktop/laptop: icons directly visible, no dropdown */}
-        <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={onAddChild}
-            aria-label={`Add ${nextMeta.label}`}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Edit">
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={onDelete} aria-label="Delete">
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-        {/* Mobile: collapse actions behind "•••" to save space */}
-        <div className="shrink-0 sm:hidden">
-          <RowActions
-            actions={[
-              {
-                label: `Add ${nextMeta.label}`,
-                icon: <Plus className="h-4 w-4" />,
-                onClick: onAddChild,
-              },
-              { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
-              {
-                label: "Delete",
-                icon: <Trash2 className="h-4 w-4" />,
-                onClick: onDelete,
-                destructive: true,
-              },
-            ]}
-          />
-        </div>
+<div className="hidden shrink-0 items-center gap-0.5 sm:flex">
+  <Button size="icon" variant="ghost" onClick={onAddChild} aria-label={`Add ${nextMeta.label}`}>
+    <Plus className="h-4 w-4" />
+  </Button>
+  <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Edit">
+    <Pencil className="h-4 w-4" />
+  </Button>
+  <Button size="icon" variant="ghost" onClick={onMove} aria-label="Move">
+    <FolderInput className="h-4 w-4" />
+  </Button>
+  <Button size="icon" variant="ghost" onClick={onDelete} aria-label="Delete">
+    <Trash2 className="h-4 w-4 text-destructive" />
+  </Button>
+</div>
+{/* Mobile: collapse actions behind "•••" to save space */}
+<div className="shrink-0 sm:hidden">
+  <RowActions
+    actions={[
+      { label: `Add ${nextMeta.label}`, icon: <Plus className="h-4 w-4" />, onClick: onAddChild },
+      { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
+      { label: "Move", icon: <FolderInput className="h-4 w-4" />, onClick: onMove },
+      { label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: onDelete, destructive: true },
+    ]}
+  />
+</div>
       </div>
 
       {hasChildren && collapsedOpen && <div className="mt-2">{children}</div>}
@@ -1077,6 +1139,36 @@ function NodeRow({
 }
 
 type FlatLine = { path: WorkNode[]; leaf: WorkNode };
+
+/** Every node in the tree, each with its full breadcrumb path — used to
+ * populate the "Move to" picker (everything is a valid target except the
+ * node itself and its own descendants, to avoid creating a cycle). */
+function buildAllPaths(byParent: Map<string | null, WorkNode[]>): FlatLine[] {
+  const out: FlatLine[] = [];
+  const walk = (parentId: string | null, trail: WorkNode[]) => {
+    const kids = byParent.get(parentId) ?? [];
+    for (const n of kids) {
+      const nextTrail = [...trail, n];
+      out.push({ path: nextTrail, leaf: n });
+      walk(n.id, nextTrail);
+    }
+  };
+  walk(null, []);
+  return out;
+}
+
+function collectDescendantIds(nodeId: string, byParent: Map<string | null, WorkNode[]>) {
+  const out = new Set<string>();
+  const walk = (id: string) => {
+    const kids = byParent.get(id) ?? [];
+    for (const k of kids) {
+      out.add(k.id);
+      walk(k.id);
+    }
+  };
+  walk(nodeId);
+  return out;
+}
 
 /** Flatten the tree into leaf lines that are NOT done, skipping entire completed subtrees. */
 function buildPendingLines(byParent: Map<string | null, WorkNode[]>, today: string): FlatLine[] {
@@ -1281,16 +1373,31 @@ function HideUntilDialog({
   const [time, setTime] = useState("");
 
   const confirm = () => {
-    let untilIso: string | null = null;
-    if (date) {
-      const t = time || "00:00";
-      const dt = new Date(`${date}T${t}:00`);
-      if (!Number.isNaN(dt.getTime())) untilIso = dt.toISOString();
+  let untilIso: string;
+  if (!date && !time) {
+    // Nothing entered — default to reappearing at the start of tomorrow
+    // instead of staying hidden forever.
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    untilIso = tomorrow.toISOString();
+  } else {
+    const d = date || new Date().toISOString().slice(0, 10);
+    const t = time || "00:00";
+    const dt = new Date(`${d}T${t}:00`);
+    if (Number.isNaN(dt.getTime())) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      untilIso = tomorrow.toISOString();
+    } else {
+      untilIso = dt.toISOString();
     }
-    onConfirm(untilIso);
-    setDate("");
-    setTime("");
-  };
+  }
+  onConfirm(untilIso);
+  setDate("");
+  setTime("");
+};
 
   return (
     <Dialog
@@ -1309,9 +1416,9 @@ function HideUntilDialog({
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Leave both blank to hide indefinitely (until you tap Show yourself), or pick a date/time
-            to have it reappear on its own.
-          </p>
+  Leave both blank to have it reappear automatically at the start of tomorrow, or pick a
+  specific date/time.
+</p>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Show again on (optional)</Label>
@@ -1329,6 +1436,313 @@ function HideUntilDialog({
           </Button>
           <Button onClick={confirm}>
             <EyeOff className="mr-1.5 h-4 w-4" /> Hide
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function QuickAddDialog({
+  open,
+  byParent,
+  create,
+  onClose,
+}: {
+  open: boolean;
+  byParent: Map<string | null, WorkNode[]>;
+  create: ReturnType<typeof useCreateWorkNode>;
+  onClose: () => void;
+}) {
+  const [companySel, setCompanySel] = useState("__new__");
+  const [companyNew, setCompanyNew] = useState("");
+  const [categorySel, setCategorySel] = useState("__new__");
+  const [categoryNew, setCategoryNew] = useState("");
+  const [workSel, setWorkSel] = useState("__new__");
+  const [workNew, setWorkNew] = useState("");
+  const [taskName, setTaskName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const companies = byParent.get(null) ?? [];
+  const categories = companySel !== "__new__" ? (byParent.get(companySel) ?? []) : [];
+  const works = categorySel !== "__new__" ? (byParent.get(categorySel) ?? []) : [];
+
+  const reset = () => {
+    setCompanySel("__new__");
+    setCompanyNew("");
+    setCategorySel("__new__");
+    setCategoryNew("");
+    setWorkSel("__new__");
+    setWorkNew("");
+    setTaskName("");
+  };
+
+  const selectCompany = (v: string) => {
+    setCompanySel(v);
+    setCategorySel("__new__");
+    setCategoryNew("");
+    setWorkSel("__new__");
+    setWorkNew("");
+  };
+  const selectCategory = (v: string) => {
+    setCategorySel(v);
+    setWorkSel("__new__");
+    setWorkNew("");
+  };
+
+  const submit = async () => {
+    if (companySel === "__new__" && !companyNew.trim()) return;
+    if (categorySel === "__new__" && !categoryNew.trim()) return;
+    if (workSel === "__new__" && !workNew.trim()) return;
+
+    setSubmitting(true);
+    try {
+      let companyId = companySel;
+      if (companySel === "__new__") {
+        const created = await create.mutateAsync({
+          parent_id: null,
+          title: companyNew.trim(),
+          node_type: "company",
+          sort_order: companies.length,
+        });
+        companyId = created.id;
+      }
+      let categoryId = categorySel;
+      if (categorySel === "__new__") {
+        const siblings = byParent.get(companyId) ?? [];
+        const created = await create.mutateAsync({
+          parent_id: companyId,
+          title: categoryNew.trim(),
+          node_type: "category",
+          sort_order: siblings.length,
+        });
+        categoryId = created.id;
+      }
+      let workId = workSel;
+      if (workSel === "__new__") {
+        const siblings = byParent.get(categoryId) ?? [];
+        const created = await create.mutateAsync({
+          parent_id: categoryId,
+          title: workNew.trim(),
+          node_type: "work",
+          sort_order: siblings.length,
+        });
+        workId = created.id;
+      }
+      if (taskName.trim()) {
+        const siblings = byParent.get(workId) ?? [];
+        await create.mutateAsync({
+          parent_id: workId,
+          title: taskName.trim(),
+          node_type: "task",
+          sort_order: siblings.length,
+        });
+      }
+      toast.success("Created");
+      reset();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          reset();
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Quick Add</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>Company</Label>
+            <select
+              value={companySel}
+              onChange={(e) => selectCompany(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            >
+              <option value="__new__">+ New company</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+            {companySel === "__new__" && (
+              <Input
+                autoFocus
+                className="mt-2"
+                placeholder="Company name"
+                value={companyNew}
+                onChange={(e) => setCompanyNew(e.target.value)}
+              />
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label>Category</Label>
+            {companySel === "__new__" ? (
+              <Input
+                placeholder="Category name"
+                value={categoryNew}
+                onChange={(e) => setCategoryNew(e.target.value)}
+              />
+            ) : (
+              <>
+                <select
+                  value={categorySel}
+                  onChange={(e) => selectCategory(e.target.value)}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="__new__">+ New category</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+                {categorySel === "__new__" && (
+                  <Input
+                    className="mt-2"
+                    placeholder="Category name"
+                    value={categoryNew}
+                    onChange={(e) => setCategoryNew(e.target.value)}
+                  />
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label>Work</Label>
+            {categorySel === "__new__" ? (
+              <Input
+                placeholder="Work name"
+                value={workNew}
+                onChange={(e) => setWorkNew(e.target.value)}
+              />
+            ) : (
+              <>
+                <select
+                  value={workSel}
+                  onChange={(e) => setWorkSel(e.target.value)}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="__new__">+ New work</option>
+                  {works.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.title}
+                    </option>
+                  ))}
+                </select>
+                {workSel === "__new__" && (
+                  <Input
+                    className="mt-2"
+                    placeholder="Work name"
+                    value={workNew}
+                    onChange={(e) => setWorkNew(e.target.value)}
+                  />
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label>Task (optional)</Label>
+            <Input
+              placeholder="Task name — leave blank to stop at Work"
+              value={taskName}
+              onChange={(e) => setTaskName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              reset();
+              onClose();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? "Creating…" : "Create"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MoveDialog({
+  node,
+  byParent,
+  onClose,
+  onMove,
+}: {
+  node: WorkNode | null;
+  byParent: Map<string | null, WorkNode[]>;
+  onClose: () => void;
+  onMove: (newParentId: string | null) => void;
+}) {
+  const [target, setTarget] = useState<string>("__root__");
+
+  const options = useMemo(() => {
+    if (!node) return [];
+    const excluded = collectDescendantIds(node.id, byParent);
+    excluded.add(node.id);
+    return buildAllPaths(byParent).filter((l) => !excluded.has(l.leaf.id));
+  }, [node, byParent]);
+
+  return (
+    <Dialog
+      open={!!node}
+      onOpenChange={(o) => {
+        if (!o) {
+          setTarget("__root__");
+          onClose();
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Move "{node?.title}"</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label>Move to</Label>
+          <select
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="__root__">— Top level (new company) —</option>
+            {options.map((o) => (
+              <option key={o.leaf.id} value={o.leaf.id}>
+                {o.path.map((p) => p.title).join(" › ")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              onMove(target === "__root__" ? null : target);
+              setTarget("__root__");
+            }}
+          >
+            Move
           </Button>
         </DialogFooter>
       </DialogContent>
