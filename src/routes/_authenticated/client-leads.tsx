@@ -1,22 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Clock,
-  AlertTriangle,
-  ArrowLeft,
-  ListPlus,
-  Building2,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, Clock, AlertTriangle, ListPlus, Building2 } from "lucide-react";
 import { PageHeader, RowActions } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -73,7 +63,7 @@ function formatDue(l: { due_date: string | null; due_time: string | null }): str
   return parts.join(" · ");
 }
 
-type LeadFilter = "all" | "pending" | "completed";
+type PriorityFilter = "all" | "none" | "low" | "medium" | "high";
 
 function ClientLeadsPage() {
   const { data: leads = [] } = useClientLeads();
@@ -82,20 +72,30 @@ function ClientLeadsPage() {
   const del = useDeleteClientLead();
   const bulkCreate = useBulkCreateClientLeads();
 
-  const [filter, setFilter] = useState<LeadFilter>("pending");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  const [groupFilter, setGroupFilter] = useState<string>("__all__");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ClientLead | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkGroup, setBulkGroup] = useState("Discussion for Future Client");
   const [bulkText, setBulkText] = useState("");
 
+  const groupNames = useMemo(() => {
+    const names = new Set<string>();
+    leads.forEach((l) => names.add(l.group_name?.trim() || "Ungrouped"));
+    return [...names].sort();
+  }, [leads]);
+
   const visible = useMemo(() => {
     return leads.filter((l) => {
-      if (filter === "pending") return !l.completed;
-      if (filter === "completed") return l.completed;
+      if (priorityFilter === "none" && l.priority) return false;
+      if (priorityFilter !== "all" && priorityFilter !== "none" && l.priority !== priorityFilter)
+        return false;
+      if (groupFilter !== "__all__" && (l.group_name?.trim() || "Ungrouped") !== groupFilter)
+        return false;
       return true;
     });
-  }, [leads, filter]);
+  }, [leads, priorityFilter, groupFilter]);
 
   const groups = useMemo(() => {
     const m = new Map<string, ClientLead[]>();
@@ -119,45 +119,63 @@ function ClientLeadsPage() {
     );
   };
 
+  // A closed lead has nothing left to track — remove it outright instead of
+  // parking it in a "Done" tab nobody needs to revisit.
+  const markDone = (l: ClientLead) => {
+    del.mutate(l.id);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <PageHeader
-          title="Client Acquisition"
-          subtitle="Leads and follow-up discussions, tracked to closed."
-        />
-        <Link to="/work">
-          <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-            <ArrowLeft className="h-3.5 w-3.5" /> Work & Projects
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Client Acquisition"
+        subtitle="Leads and follow-up discussions, tracked until closed."
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBulkOpen(true)}>
+              <ListPlus className="h-4 w-4" /> Bulk add
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+              <Plus className="h-4 w-4" /> Add lead
+            </Button>
+          </div>
+        }
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Tabs value={filter} onValueChange={(v) => setFilter(v as LeadFilter)}>
-          <TabsList className="grid grid-cols-3 sm:w-auto">
-            <TabsTrigger value="all">All ({leads.length})</TabsTrigger>
-            <TabsTrigger value="pending">
-              Pending ({leads.filter((l) => !l.completed).length})
-            </TabsTrigger>
-            <TabsTrigger value="completed">
-              Done ({leads.filter((l) => l.completed).length})
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBulkOpen(true)}>
-            <ListPlus className="h-4 w-4" /> Bulk add
-          </Button>
-          <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-            <Plus className="h-4 w-4" /> Add lead
-          </Button>
-        </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as PriorityFilter)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All priorities</SelectItem>
+            <SelectItem value="none">No priority</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={groupFilter} onValueChange={setGroupFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Group" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All groups</SelectItem>
+            {groupNames.map((g) => (
+              <SelectItem key={g} value={g}>
+                {g}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="flex items-center text-xs text-muted-foreground">
+          {visible.length} lead{visible.length === 1 ? "" : "s"}
+        </span>
       </div>
 
       {visible.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No {filter === "all" ? "leads" : filter} yet.
+          No leads match this filter.
         </div>
       ) : (
         <div className="space-y-4">
@@ -171,28 +189,27 @@ function ClientLeadsPage() {
               <div className="space-y-1.5">
                 {items.map((l) => {
                   const due = formatDue(l);
-                  const overdue = !l.completed && !!l.due_date && l.due_date < todayKey();
+                  const overdue = !!l.due_date && l.due_date < todayKey();
                   return (
                     <div
                       key={l.id}
                       className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent/30"
                     >
                       <Checkbox
-                        checked={l.completed}
-                        onCheckedChange={(v) => update.mutate({ id: l.id, completed: !!v })}
+                        checked={false}
+                        onCheckedChange={() => markDone(l)}
                         className="mt-0.5 shrink-0"
+                        aria-label="Mark done & remove"
                       />
                       <div className="min-w-0 flex-1">
                         <p
                           className={cn(
                             "break-words font-medium leading-snug",
-                            l.completed
-                              ? "text-muted-foreground line-through"
-                              : overdue
-                                ? cn(OVERDUE_CLASS, "font-semibold")
-                                : l.priority
-                                  ? PRIORITY_TEXT[l.priority]
-                                  : "text-foreground",
+                            overdue
+                              ? cn(OVERDUE_CLASS, "font-semibold")
+                              : l.priority
+                                ? PRIORITY_TEXT[l.priority]
+                                : "text-foreground",
                           )}
                         >
                           {l.name}

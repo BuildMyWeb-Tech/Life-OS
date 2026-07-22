@@ -25,6 +25,7 @@ import { Route as AuthenticatedClientLeadsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedClientCallsRouteImport } from './routes/_authenticated/client-calls'
 import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
+import { Route as AuthenticatedAsksRouteImport } from './routes/_authenticated/asks'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -109,11 +110,17 @@ const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAsksRoute = AuthenticatedAsksRouteImport.update({
+  id: '/asks',
+  path: '/asks',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/register': typeof RegisterRoute
+  '/asks': typeof AuthenticatedAsksRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/categories': typeof AuthenticatedCategoriesRoute
   '/client-calls': typeof AuthenticatedClientCallsRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/register': typeof RegisterRoute
+  '/asks': typeof AuthenticatedAsksRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/categories': typeof AuthenticatedCategoriesRoute
   '/client-calls': typeof AuthenticatedClientCallsRoute
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/register': typeof RegisterRoute
+  '/_authenticated/asks': typeof AuthenticatedAsksRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
   '/_authenticated/client-calls': typeof AuthenticatedClientCallsRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/register'
+    | '/asks'
     | '/calendar'
     | '/categories'
     | '/client-calls'
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/register'
+    | '/asks'
     | '/calendar'
     | '/categories'
     | '/client-calls'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/register'
+    | '/_authenticated/asks'
     | '/_authenticated/calendar'
     | '/_authenticated/categories'
     | '/_authenticated/client-calls'
@@ -339,10 +351,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCalendarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/asks': {
+      id: '/_authenticated/asks'
+      path: '/asks'
+      fullPath: '/asks'
+      preLoaderRoute: typeof AuthenticatedAsksRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAsksRoute: typeof AuthenticatedAsksRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
   AuthenticatedClientCallsRoute: typeof AuthenticatedClientCallsRoute
@@ -358,6 +378,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAsksRoute: AuthenticatedAsksRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
   AuthenticatedClientCallsRoute: AuthenticatedClientCallsRoute,

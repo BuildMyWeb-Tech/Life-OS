@@ -1399,6 +1399,14 @@ function HideUntilDialog({
   setTime("");
 };
 
+const hideUntilTodayEightPM = () => {
+    const d = new Date();
+    d.setHours(20, 0, 0, 0);
+    onConfirm(d.toISOString());
+    setDate("");
+    setTime("");
+  };
+
   return (
     <Dialog
       open={open}
@@ -1416,9 +1424,18 @@ function HideUntilDialog({
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-  Leave both blank to have it reappear automatically at the start of tomorrow, or pick a
-  specific date/time.
-</p>
+            Leave both blank to have it reappear automatically at the start of tomorrow, or pick a
+            specific date/time.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={hideUntilTodayEightPM}
+          >
+            <Clock className="h-3.5 w-3.5" /> Today, 8 PM
+          </Button>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Show again on (optional)</Label>

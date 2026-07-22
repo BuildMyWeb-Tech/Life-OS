@@ -70,11 +70,11 @@ function ClientCallsPage() {
           }
         />
       </div>
-      <Link to="/work">
+      {/* <Link to="/work">
         <Button variant="outline" size="sm" className="gap-1.5 text-xs">
           <ArrowLeft className="h-3.5 w-3.5" /> Work & Projects
         </Button>
-      </Link>
+      </Link> */}
 
      {calls.length === 0 ? (
   <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">

@@ -16,6 +16,7 @@ import {
   Wand2,
   Target,
   Phone,
+  HelpCircle,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,10 +28,17 @@ import { cn } from "@/lib/utils";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
-  { to: "/work", label: "Work & Projects", icon: Briefcase },
-  { to: "/client-leads", label: "Client Leads", icon: Target },
-  { to: "/client-calls", label: "Client Calls", icon: Phone },
+  {
+    to: "/work",
+    label: "Work & Projects",
+    icon: Briefcase,
+    children: [
+      { to: "/client-calls", label: "Client Calls", icon: Phone },
+      { to: "/client-leads", label: "Client Leads", icon: Target },
+    ],
+  },
   { to: "/tasks", label: "To Do List", icon: CheckSquare },
+  { to: "/asks", label: "Asks", icon: HelpCircle },
   { to: "/habits", label: "Habits", icon: Flame },
   { to: "/vision-board", label: "Vision Board", icon: Wand2 },
   { to: "/report", label: "Report", icon: BarChart3 },
@@ -66,27 +74,53 @@ export function AppShell({ children }: { children: ReactNode }) {
         {nav.map((item) => {
           const active = pathname === item.to;
           const Icon = item.icon;
+          const children = "children" in item ? item.children : undefined;
           return (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_var(--border)]"
-                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+            <div key={item.to}>
+              <Link
+                to={item.to}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all",
+                  active
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                )}
+              >
+                <Icon className={cn("h-4 w-4", active && "text-primary")} />
+                <span>{item.label}</span>
+                {active && (
+                  <motion.div
+                    layoutId="active-dot"
+                    className="ml-auto h-1.5 w-1.5 rounded-full bg-primary"
+                  />
+                )}
+              </Link>
+              {children && (
+                <div className="ml-5 mt-1 flex flex-col gap-1 border-l border-sidebar-border pl-3">
+                  {children.map((child) => {
+                    const childActive = pathname === child.to;
+                    const ChildIcon = child.icon;
+                    return (
+                      <Link
+                        key={child.to}
+                        to={child.to}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all",
+                          childActive
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                            : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                        )}
+                      >
+                        <ChildIcon className={cn("h-3.5 w-3.5", childActive && "text-primary")} />
+                        <span>{child.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-            >
-              <Icon className={cn("h-4 w-4", active && "text-primary")} />
-              <span>{item.label}</span>
-              {active && (
-                <motion.div
-                  layoutId="active-dot"
-                  className="ml-auto h-1.5 w-1.5 rounded-full bg-primary"
-                />
-              )}
-            </Link>
+            </div>
           );
         })}
       </nav>
