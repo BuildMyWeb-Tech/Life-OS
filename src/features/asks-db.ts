@@ -9,6 +9,9 @@ export type Ask = {
   notes: string | null;
   due_date: string | null;
   due_time: string | null;
+  completed: boolean;
+  held: boolean;
+  held_until: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -73,6 +76,9 @@ export function useUpdateAsk() {
       notes?: string | null;
       due_date?: string | null;
       due_time?: string | null;
+      completed?: boolean;
+      held?: boolean;
+      held_until?: string | null;
     }) => {
       const { id, ...patch } = input;
       const { error } = await table().update(patch).eq("id", id);

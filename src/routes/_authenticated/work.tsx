@@ -39,6 +39,7 @@ import {
   ListPlus,
   Target,
   Phone,
+  HelpCircle,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -562,7 +563,13 @@ const moveNode = (newParentId: string | null) => {
             <Button variant="outline" size="sm" className="gap-1.5 px-2.5 text-xs">
               <Phone className="h-3.5 w-3.5" /> Client Calls
             </Button>
-          </Link> */}
+          </Link> 
+          <Link to="/asks">
+            <Button variant="outline" size="sm" className="gap-1.5 px-2.5 text-xs">
+              <HelpCircle className="h-3.5 w-3.5" /> Asks
+            </Button>
+          </Link>
+          */}
         </div>
       </div>
 
@@ -596,15 +603,16 @@ const moveNode = (newParentId: string | null) => {
            <Button onClick={addCompany} className="gap-2">
   <Plus className="h-4 w-4" /> Add Company
 </Button>
-</div>
-
 <Button
   variant="outline"
   className="gap-2"
   onClick={() => setQuickAddOpen(true)}
 >
-  <ListPlus className="h-4 w-4" /> Quick Add (Company → Category → Work → Task)
+  <ListPlus className="h-4 w-4" /> Quick Add 
 </Button>
+</div>
+
+
 
           <div className="space-y-3">
             {roots.length === 0 && (
@@ -1213,6 +1221,7 @@ function GroupedLines({
   lines,
   checked,
   today,
+  sectionLabel,
   onToggle,
   onSetPriority,
   onToggleHold,
@@ -1220,6 +1229,7 @@ function GroupedLines({
   lines: FlatLine[];
   checked: boolean;
   today: string;
+  sectionLabel?: "shown" | "hidden";
   onToggle: (n: WorkNode) => void;
   onSetPriority?: (n: WorkNode, p: Priority) => void;
   onToggleHold?: (n: WorkNode) => void;
@@ -1233,21 +1243,16 @@ function GroupedLines({
 
   return (
     <div className="space-y-4">
-      {[...groups.entries()].map(([companyId, rawItems]) => {
-        const company = rawItems[0].path[0];
-        // Hidden items sink to the bottom so the visible/active ones are
-        // always together at the top of each group (stable within each half).
-        const items = [...rawItems].sort((a, b) => {
-          const ah = isEffectivelyHeld(a.leaf.held, a.leaf.held_until) ? 1 : 0;
-          const bh = isEffectivelyHeld(b.leaf.held, b.leaf.held_until) ? 1 : 0;
-          return ah - bh;
-        });
+      {[...groups.entries()].map(([companyId, items]) => {
+        const company = items[0].path[0];
         return (
           <div key={companyId} className="rounded-2xl border border-border bg-card p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Building2 className="h-4 w-4 text-primary" />
               <p className="text-sm font-semibold">{company.title}</p>
-              <span className="text-xs text-muted-foreground">· {items.length}</span>
+              <span className="text-xs text-muted-foreground">
+                · {items.length} {sectionLabel ?? ""}
+              </span>
             </div>
             <div className="space-y-1.5">
               {items.map(({ path, leaf }) => {
@@ -1779,8 +1784,12 @@ function PendingList({
   onSetPriority: (n: WorkNode, p: Priority) => void;
 }) {
   const lines = useMemo(() => buildPendingLines(byParent, today), [byParent, today]);
-  const heldCount = useMemo(
-    () => lines.filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until)).length,
+  const shownLines = useMemo(
+    () => lines.filter((l) => !isEffectivelyHeld(l.leaf.held, l.leaf.held_until)),
+    [lines],
+  );
+  const hiddenLines = useMemo(
+    () => lines.filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until)),
     [lines],
   );
 
@@ -1800,48 +1809,127 @@ function PendingList({
 
   const { data: tasks = [] } = useTasks();
   const updateTask = useUpdateTask();
-  // Only show to-dos that are undated, due today, or overdue (past due and
-  // not yet done — those need attention) — anything with a future due date
-  // is left for its own day, so this list doesn't fill up prematurely.
-  const pendingTasks = useMemo(() => {
-    const relevant = tasks.filter((t) => !t.done && (!t.due_date || t.due_date <= today));
-    // Hidden ones sink to the bottom, same as work items above.
-    return [...relevant].sort((a, b) => {
-      const ah = isEffectivelyHeld(a.held, a.held_until) ? 1 : 0;
-      const bh = isEffectivelyHeld(b.held, b.held_until) ? 1 : 0;
-      return ah - bh;
-    });
-  }, [tasks, today]);
-  const heldTaskCount = pendingTasks.filter((t) => isEffectivelyHeld(t.held, t.held_until)).length;
+  const relevantTasks = useMemo(
+    () => tasks.filter((t) => !t.done && (!t.due_date || t.due_date <= today)),
+    [tasks, today],
+  );
+  const shownTasks = useMemo(
+    () => relevantTasks.filter((t) => !isEffectivelyHeld(t.held, t.held_until)),
+    [relevantTasks],
+  );
+  const hiddenTasks = useMemo(
+    () => relevantTasks.filter((t) => isEffectivelyHeld(t.held, t.held_until)),
+    [relevantTasks],
+  );
 
-  const totalHidden = heldCount + heldTaskCount;
+  const totalHidden = hiddenLines.length + hiddenTasks.length;
   const showAllHidden = () => {
-    const workIds = lines
-      .filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until))
-      .map((l) => l.leaf.id);
-    const taskIds = pendingTasks
-      .filter((t) => isEffectivelyHeld(t.held, t.held_until))
-      .map((t) => t.id);
+    const workIds = hiddenLines.map((l) => l.leaf.id);
+    const taskIds = hiddenTasks.map((t) => t.id);
     if (workIds.length) unhideAllWork.mutate(workIds);
     if (taskIds.length) unhideAllTasks.mutate(taskIds);
   };
 
-  const nothingPending = lines.length === 0 && pendingTasks.length === 0;
+  const nothingPending = lines.length === 0 && relevantTasks.length === 0;
+
+  const renderTodo = (list: Task[]) => (
+  <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="mb-2 flex items-center gap-2">
+      <CheckSquare className="h-4 w-4 text-accent" />
+      <p className="text-sm font-semibold">To Do List</p>
+      <span className="text-xs text-muted-foreground">· {list.length}</span>
+    </div>
+    <div className="space-y-1.5">
+      {list.map((t: Task) => {
+        const isHeld = isEffectivelyHeld(t.held, t.held_until);
+        const overdue = isOverdue(t.due_date, false, today);
+        return (
+          <div
+            key={t.id}
+            onClick={() => updateTask.mutate({ id: t.id, done: true })}
+            className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-xs sm:text-sm hover:bg-accent/30"
+          >
+            <Checkbox
+              checked={false}
+              onCheckedChange={() => updateTask.mutate({ id: t.id, done: true })}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-0.5 shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              {isHeld ? (
+                <span
+                  className="inline-block h-3.5 w-40 max-w-full rounded bg-muted-foreground/15"
+                  aria-label="Hidden"
+                />
+              ) : (
+                <span className="break-words leading-snug">
+                  <span
+                    className={cn(
+                      "font-medium",
+                      overdue ? cn(OVERDUE_CLASS, "font-semibold") : "text-foreground",
+                    )}
+                  >
+                    {t.title}
+                  </span>
+                  {(t.due_date || t.due_time) && (
+                    <span
+                      className={cn(
+                        "ml-2 text-xs",
+                        overdue ? cn(OVERDUE_CLASS, "font-medium") : "text-muted-foreground",
+                      )}
+                    >
+                      {t.due_date ?? ""}
+                      {t.due_time ? ` · ${t.due_time}` : ""}
+                      {overdue && " · Overdue"}
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isHeld) {
+                  updateTask.mutate({ id: t.id, held: false, held_until: null });
+                } else {
+                  setHidingTask(t);
+                }
+              }}
+              className="shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {isHeld ? (
+                <>
+                  <Eye className="h-3.5 w-3.5" /> Show
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-3.5 w-3.5" /> Hide
+                </>
+              )}
+            </Button>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs text-muted-foreground">
+          {shownLines.length} shown work {shownLines.length === 1 ? "item" : "items"}
+          {shownTasks.length > 0 && ` · ${shownTasks.length} pending to-do`}
+          {totalHidden > 0 && ` · ${totalHidden} hidden`}
+        </div>
         {totalHidden > 0 && (
           <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={showAllHidden}>
             <Eye className="h-3.5 w-3.5" /> Show all hidden ({totalHidden})
           </Button>
         )}
-        <div className="text-xs text-muted-foreground">
-          {lines.length} pending work {lines.length === 1 ? "item" : "items"}
-          {pendingTasks.length > 0 && ` · ${pendingTasks.length} pending to-do`}
-          {totalHidden > 0 && ` · ${totalHidden} hidden`}
-        </div>
-        
       </div>
 
       {nothingPending ? (
@@ -1849,99 +1937,43 @@ function PendingList({
           🎉 Nothing pending. All items completed.
         </div>
       ) : (
-        <GroupedLines
-          lines={lines}
-          checked={false}
-          today={today}
-          onToggle={onToggleDone}
-          onSetPriority={onSetPriority}
-          onToggleHold={onToggleHoldNode}
-        />
-      )}
+        <>
+          {/* Shown, across every company, always at the top */}
+          {shownLines.length > 0 && (
+            <GroupedLines
+              lines={shownLines}
+              checked={false}
+              today={today}
+              sectionLabel="shown"
+              onToggle={onToggleDone}
+              onSetPriority={onSetPriority}
+              onToggleHold={onToggleHoldNode}
+            />
+          )}
 
-      {pendingTasks.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <CheckSquare className="h-4 w-4 text-accent" />
-            <p className="text-sm font-semibold">To Do List</p>
-            <span className="text-xs text-muted-foreground">· {pendingTasks.length} pending</span>
-          </div>
-          <div className="space-y-1.5">
-            {pendingTasks.map((t: Task) => {
-              const isHeld = isEffectivelyHeld(t.held, t.held_until);
-              const overdue = isOverdue(t.due_date, false, today);
-              return (
-                <div
-                  key={t.id}
-                  onClick={() => updateTask.mutate({ id: t.id, done: true })}
-                  className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-xs sm:text-sm hover:bg-accent/30"
-                >
-                  <Checkbox
-                    checked={false}
-                    onCheckedChange={() => updateTask.mutate({ id: t.id, done: true })}
-                    onClick={(e) => e.stopPropagation()}
-                    className="mt-0.5 shrink-0"
-                  />
-                  <div className="min-w-0 flex-1">
-                    {isHeld ? (
-                      <span
-                        className="inline-block h-3.5 w-40 max-w-full rounded bg-muted-foreground/15"
-                        aria-label="Hidden"
-                      />
-                    ) : (
-                      <span className="break-words leading-snug">
-                        <span
-                          className={cn(
-                            "font-medium",
-                            overdue ? cn(OVERDUE_CLASS, "font-semibold") : "text-foreground",
-                          )}
-                        >
-                          {t.title}
-                        </span>
-                        {(t.due_date || t.due_time) && (
-                          <span
-                            className={cn(
-                              "ml-2 text-xs",
-                              overdue ? cn(OVERDUE_CLASS, "font-medium") : "text-muted-foreground",
-                            )}
-                          >
-                            {t.due_date ?? ""}
-                            {t.due_time ? ` · ${t.due_time}` : ""}
-                            {overdue && " · Overdue"}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isHeld) {
-                        updateTask.mutate({ id: t.id, held: false, held_until: null });
-                      } else {
-                        setHidingTask(t);
-                      }
-                    }}
-                    className="shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {isHeld ? (
-                      <>
-                        <Eye className="h-3.5 w-3.5" /> Show
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="h-3.5 w-3.5" /> Hide
-                      </>
-                    )}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          {shownTasks.length > 0 && renderTodo(shownTasks)}
+
+          {/* Hidden, across every company, always at the bottom */}
+          {totalHidden > 0 && (
+            <div className="space-y-4 border-t border-dashed border-border pt-4">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <EyeOff className="h-3.5 w-3.5" /> Hidden
+              </p>
+              {hiddenLines.length > 0 && (
+                <GroupedLines
+                  lines={hiddenLines}
+                  checked={false}
+                  today={today}
+                  sectionLabel="hidden"
+                  onToggle={onToggleDone}
+                  onSetPriority={onSetPriority}
+                  onToggleHold={onToggleHoldNode}
+                />
+              )}
+              {hiddenTasks.length > 0 && renderTodo(hiddenTasks)}
+            </div>
+          )}
+        </>
       )}
 
       <HideUntilDialog

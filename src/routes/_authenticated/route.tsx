@@ -11,6 +11,7 @@ export const Route = createFileRoute("/_authenticated")({
     }
     const hasSession = await ensureSupabaseSession();
     if (!hasSession) {
+      console.warn("[auth] No verified session after retries — redirecting to /auth.");
       clearLocalAuth();
       throw redirect({ to: "/auth" });
     }

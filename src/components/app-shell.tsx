@@ -35,10 +35,10 @@ const nav = [
     children: [
       { to: "/client-calls", label: "Client Calls", icon: Phone },
       { to: "/client-leads", label: "Client Leads", icon: Target },
+      { to: "/asks", label: "Asks", icon: HelpCircle },
     ],
   },
   { to: "/tasks", label: "To Do List", icon: CheckSquare },
-  { to: "/asks", label: "Asks", icon: HelpCircle },
   { to: "/habits", label: "Habits", icon: Flame },
   { to: "/vision-board", label: "Vision Board", icon: Wand2 },
   { to: "/report", label: "Report", icon: BarChart3 },

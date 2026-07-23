@@ -13,22 +13,42 @@ function emailForUsername(username: string) {
   return `${username.toLowerCase().trim()}@user.mylife-monitor.local`;
 }
 
+// Real network-verified checks are expensive to do on every single route
+// change — the old code called getSession()/refreshSession() on every
+// in-app navigation with zero retry, so any one slow or flaky mobile
+// network request instantly logged the user out. Now a verified check is
+// cached for a short window, and failures get a couple of retries before
+// giving up, so a genuine logout only happens when the session is truly gone.
+let lastVerifiedAt = 0;
+const VERIFY_INTERVAL_MS = 2 * 60 * 1000;
+
 /** Ensure we have a stable backend session so RLS-scoped queries work.
  * getSession() alone can occasionally come back empty right after the app
  * resumes from a long background sleep (mobile browsers throttle timers,
  * so the client's auto-refresh may not have run yet) — before treating that
- * as "logged out", explicitly try to refresh the session once. */
-export async function ensureSupabaseSession() {
+ * as "logged out", retry a couple of times and explicitly try to refresh. */
+export async function ensureSupabaseSession(force = false) {
   if (typeof window === "undefined") return false;
-  const { data } = await supabase.auth.getSession();
-  if (data.session) return true;
+  if (!force && Date.now() - lastVerifiedAt < VERIFY_INTERVAL_MS) return true;
 
-  try {
-    const { data: refreshed } = await supabase.auth.refreshSession();
-    return !!refreshed.session;
-  } catch {
-    return false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        lastVerifiedAt = Date.now();
+        return true;
+      }
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed.session) {
+        lastVerifiedAt = Date.now();
+        return true;
+      }
+    } catch {
+      /* network hiccup — fall through to retry below rather than failing immediately */
+    }
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
   }
+  return false;
 }
 
 export async function login(username: string, password: string) {
@@ -131,7 +151,7 @@ export function attachSessionKeepAlive() {
 
   const onVisible = () => {
     if (document.visibilityState === "visible") {
-      void ensureSupabaseSession();
+      void ensureSupabaseSession(true);
     }
   };
   document.addEventListener("visibilitychange", onVisible);
