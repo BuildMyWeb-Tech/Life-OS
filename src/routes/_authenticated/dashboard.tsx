@@ -34,19 +34,50 @@ function greeting() {
   return "Good Evening";
 }
 
+function toKey(d: Date): string {
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+/** "This Week" = the current 7-day chunk of the calendar month: 1–7, 8–14,
+ * 15–21, 22–28, 29–end. Only days up to today are counted (no future days). */
+function weekChunkDayKeys(now: Date): string[] {
+  const dayOfMonth = now.getDate();
+  const chunkStartDay = Math.floor((dayOfMonth - 1) / 7) * 7 + 1;
+  const keys: string[] = [];
+  for (let d = chunkStartDay; d <= dayOfMonth; d++) {
+    keys.push(toKey(new Date(now.getFullYear(), now.getMonth(), d)));
+  }
+  return keys;
+}
+
+/** "This Month" = the 1st of the current calendar month through today
+ * (never past the actual end of the month, since it stops at "today"). */
+function monthToDateDayKeys(now: Date): string[] {
+  const keys: string[] = [];
+  for (let d = 1; d <= now.getDate(); d++) {
+    keys.push(toKey(new Date(now.getFullYear(), now.getMonth(), d)));
+  }
+  return keys;
+}
+
 function Dashboard() {
   const today = todayKey();
-  const from30 = daysAgo(29);
+  // Wide enough to cover both a 31-day month-to-date and the 30-day streak
+  // lookback below, whichever needs more history.
+  const from35 = daysAgo(34);
   const { data: username = "" } = useCurrentUsername();
 
   const { data: allHabits = [] } = useHabits();
   const positiveHabits = allHabits.filter((h) => h.kind === "positive");
   const negativeHabits = allHabits.filter((h) => h.kind === "negative");
-  const { data: logs30 = [] } = useHabitLogs(from30, today);
+  const { data: logs30 = [] } = useHabitLogs(from35, today);
   const habitSet = useMemo(() => logIndex(logs30), [logs30]);
 
   const { data: routineItems = [] } = useRoutineItems();
-  const { data: routineLogs = [] } = useRoutineLogs(from30, today);
+  const { data: routineLogs = [] } = useRoutineLogs(from35, today);
   const routineSet = useMemo(() => routineLogIndex(routineLogs), [routineLogs]);
 
   const doneToday = routineItems.filter((i) => isRoutineDone(routineSet, i.id, today)).length;
@@ -58,11 +89,10 @@ function Dashboard() {
 
   // Combined progress: positive habits + avoid list (negatives).
   // Only counts a habit on days on/after it was actually created — otherwise
-  // a habit added yesterday would count as "missed" for the prior 29 days
-  // and drag the weekly/monthly % down incorrectly.
+  // a habit added yesterday would count as "missed" for days before it
+  // existed and drag the weekly/monthly % down incorrectly.
   const { weeklyPct, monthlyPct } = useMemo(() => {
-    const calc = (n: number) => {
-      const days = Array.from({ length: n }, (_, i) => daysAgo(i));
+    const calcFor = (days: string[]) => {
       let done = 0;
       let total = 0;
       const tally = (h: (typeof positiveHabits)[number]) => {
@@ -77,7 +107,11 @@ function Dashboard() {
       negativeHabits.forEach(tally);
       return total ? Math.round((done / total) * 100) : 0;
     };
-    return { weeklyPct: calc(7), monthlyPct: calc(30) };
+    const now = new Date();
+    return {
+      weeklyPct: calcFor(weekChunkDayKeys(now)),
+      monthlyPct: calcFor(monthToDateDayKeys(now)),
+    };
   }, [positiveHabits, negativeHabits, habitSet]);
 
   const todayCombinedPct = useMemo(() => {
@@ -159,7 +193,11 @@ function Dashboard() {
         <StatCard
           label="Pending"
           value={pendingRoutine.length}
-          hint={pendingHabits ? `${pendingHabits} habit${pendingHabits > 1 ? "s" : ""} left` : "All clear ✨"}
+          hint={
+            pendingHabits
+              ? `${pendingHabits} habit${pendingHabits > 1 ? "s" : ""} left`
+              : "All clear ✨"
+          }
           icon={<Trophy className="h-4 w-4" />}
           accent="success"
         />
@@ -183,7 +221,9 @@ function Dashboard() {
           <Quote className="h-8 w-8 shrink-0 text-primary" />
           <div>
             <p className="text-lg font-medium leading-relaxed">"{quote}"</p>
-            <p className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">Daily Spark</p>
+            <p className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">
+              Daily Spark
+            </p>
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ export type Task = {
   done: boolean;
   held: boolean;
   held_until: string | null;
+  completed_at: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -95,6 +96,7 @@ export function useUpdateTask() {
       done?: boolean;
       held?: boolean;
       held_until?: string | null;
+      completed_at?: string | null;
     }) => {
       const { id, ...patch } = input;
       const { error } = await table().update(patch).eq("id", id);

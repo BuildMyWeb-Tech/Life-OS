@@ -49,6 +49,9 @@ export function useCreateWorkNode() {
       node_type?: string;
       sort_order?: number;
       task_kind?: "recurring" | "one_time";
+      recurrence?: "daily" | "weekly" | "monthly";
+      recurrence_weekdays?: number[] | null;
+      recurrence_day_of_month?: number | null;
       priority?: "low" | "medium" | "high" | null;
       due_date?: string | null;
       due_time?: string | null;
@@ -56,6 +59,13 @@ export function useCreateWorkNode() {
       const { data: userData } = await supabase.auth.getUser();
       const user_id = userData.user?.id;
       if (!user_id) throw new Error("Not signed in");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const extra: any = {
+        priority: input.priority ?? null,
+        recurrence: input.recurrence ?? "daily",
+        recurrence_weekdays: input.recurrence_weekdays ?? null,
+        recurrence_day_of_month: input.recurrence_day_of_month ?? null,
+      };
       const { data, error } = await supabase
         .from("lifeos_work_nodes")
         .insert({
@@ -68,8 +78,7 @@ export function useCreateWorkNode() {
           task_kind: input.task_kind ?? "recurring",
           due_date: input.due_date ?? null,
           due_time: input.due_time ?? null,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...({ priority: input.priority ?? null } as any),
+          ...extra,
         })
         .select()
         .single();

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { toast } from "sonner";
 import {
   CheckSquare,
   Plus,
@@ -130,6 +129,20 @@ function TasksPage() {
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+
+  // Sweep: any completed task that's been done for 24h+ gets removed for
+  // good. Runs on load and every 5 minutes while the app is open.
+  useEffect(() => {
+    const sweep = () => {
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      tasks
+        .filter((t) => t.done && t.completed_at && new Date(t.completed_at).getTime() < cutoff)
+        .forEach((t) => deleteTask.mutate(t.id));
+    };
+    sweep();
+    const iv = window.setInterval(sweep, 5 * 60 * 1000);
+    return () => window.clearInterval(iv);
+  }, [tasks, deleteTask]);
   const createSubtask = useCreateSubtask();
 
   const subtaskMap = useMemo(() => subtasksByTask(subtasks), [subtasks]);
@@ -348,13 +361,11 @@ function TasksPage() {
                 task={t}
                 subtasks={subtaskMap.get(t.id) ?? []}
                 onToggle={(done) => {
-                  if (done) {
-                    deleteTask.mutate(t.id, {
-                      onSuccess: () => toast.success("Completed & removed"),
-                    });
-                  } else {
-                    updateTask.mutate({ id: t.id, done });
-                  }
+                  updateTask.mutate({
+                    id: t.id,
+                    done,
+                    completed_at: done ? new Date().toISOString() : null,
+                  });
                 }}
                 onEdit={() => openEdit(t)}
                 onDelete={() => deleteTask.mutate(t.id)}
