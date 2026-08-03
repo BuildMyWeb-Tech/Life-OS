@@ -24,6 +24,7 @@ export type Habit = {
   reminder_time: string | null;
   sort_order: number;
   archived: boolean;
+  archived_at: string | null;
   created_at: string;
 };
 
@@ -55,17 +56,15 @@ export function useCategories() {
   });
 }
 
-export function useHabits() {
+export function useHabits(includeArchived = false) {
   return useQuery({
-    queryKey: QK.habits,
+    queryKey: includeArchived ? [...QK.habits, "with-archived"] : QK.habits,
     queryFn: async (): Promise<Habit[]> => {
-      const { data, error } = await supabase
-        .from("lifeos_habits")
-        .select("*")
-        .eq("archived", false)
-        .order("sort_order", { ascending: true });
+      let query = supabase.from("lifeos_habits").select("*");
+      if (!includeArchived) query = query.eq("archived", false);
+      const { data, error } = await query.order("sort_order", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as Habit[];
+      return (data ?? []) as unknown as Habit[];
     },
   });
 }
@@ -100,10 +99,7 @@ export function useToggleHabit() {
       if (done) {
         const { error } = await supabase
           .from("lifeos_habit_logs")
-          .upsert(
-            { habit_id, log_date, done: true },
-            { onConflict: "habit_id,log_date" },
-          );
+          .upsert({ habit_id, log_date, done: true }, { onConflict: "habit_id,log_date" });
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -125,7 +121,8 @@ export function useCreateHabit() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: Partial<Habit> & { name: string }) => {
-      const { error } = await supabase.from("lifeos_habits").insert(input);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await supabase.from("lifeos_habits").insert(input as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -142,29 +139,34 @@ export function useUpdateHabit() {
     mutationFn: async ({ id, ...patch }: { id: string } & Partial<Habit>) => {
       const { error } = await supabase
         .from("lifeos_habits")
-        .update(patch)
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: QK.habits }),
-    onError: (e: Error) => toast.error(e.message),
-  });
-}
-
-export function useDeleteHabit() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("lifeos_habits")
-        .delete()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(patch as any)
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QK.habits });
+      qc.invalidateQueries({ queryKey: [...QK.habits, "with-archived"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Permanent delete — CASCADEs to remove all of this habit's log history too.
+ * Prefer archiving (useUpdateHabit with archived:true) for routine cleanup;
+ * only use this when you genuinely want the history gone. */
+export function useDeleteHabit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("lifeos_habits").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK.habits });
+      qc.invalidateQueries({ queryKey: [...QK.habits, "with-archived"] });
       qc.invalidateQueries({ queryKey: ["lifeos", "logs"] });
-      toast.success("Removed");
+      toast.success("Deleted permanently");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -189,10 +191,7 @@ export function useDeleteCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("lifeos_categories")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("lifeos_categories").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -208,10 +207,7 @@ export function useUpdateCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...patch }: { id: string } & Partial<Category>) => {
-      const { error } = await supabase
-        .from("lifeos_categories")
-        .update(patch)
-        .eq("id", id);
+      const { error } = await supabase.from("lifeos_categories").update(patch).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QK.categories }),
@@ -230,4 +226,18 @@ export function logIndex(logs: HabitLog[] | undefined) {
 
 export function isDone(set: Set<string>, habitId: string, date: string) {
   return set.has(`${habitId}|${date}`);
+}
+
+/** Was this habit "on the books" for the given day? Used by reports so that
+ * archiving or adding a habit today never changes what a past month's
+ * percentages look like — each day only counts habits that actually existed
+ * (and hadn't been archived yet) on that specific day. */
+export function isHabitActiveOn(h: Habit, dayKey: string) {
+  const createdKey = h.created_at.slice(0, 10);
+  if (dayKey < createdKey) return false;
+  if (h.archived_at) {
+    const archivedKey = h.archived_at.slice(0, 10);
+    if (dayKey > archivedKey) return false;
+  }
+  return true;
 }

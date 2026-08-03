@@ -9,6 +9,9 @@ export type RoutineItem = {
   notes: string | null;
   sort_order: number;
   held: boolean;
+  archived: boolean;
+  archived_at: string | null;
+  created_at: string;
 };
 
 export type RoutineLog = {
@@ -23,14 +26,14 @@ const QK = {
   logs: (from: string, to: string) => ["lifeos", "routine-logs", from, to] as const,
 };
 
-export function useRoutineItems() {
+export function useRoutineItems(includeArchived = false) {
   return useQuery({
-    queryKey: QK.items,
+    queryKey: includeArchived ? [...QK.items, "with-archived"] : QK.items,
     queryFn: async (): Promise<RoutineItem[]> => {
-      const { data, error } = await supabase
-        .from("lifeos_routine_items")
-        .select("*")
-        .order("sort_order", { ascending: true });
+      let query = supabase.from("lifeos_routine_items").select("*");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!includeArchived) query = (query as any).eq("archived", false);
+      const { data, error } = await query.order("sort_order", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as RoutineItem[];
     },
@@ -85,6 +88,9 @@ export function useUpdateRoutineItem() {
   });
 }
 
+/** Permanent delete — CASCADEs to remove all of this item's log history too.
+ * Prefer archiving (useUpdateRoutineItem with archived:true) for routine
+ * cleanup; only use this when you genuinely want the history gone. */
 export function useDeleteRoutineItem() {
   const qc = useQueryClient();
   return useMutation({
@@ -156,4 +162,17 @@ export function routineLogIndex(logs: RoutineLog[] | undefined) {
 
 export function isRoutineDone(set: Set<string>, itemId: string, date: string) {
   return set.has(`${itemId}|${date}`);
+}
+
+/** Was this routine item "on the books" for the given day? Same point-in-time
+ * gating as isHabitActiveOn — reports should only count an item for days it
+ * actually existed and hadn't been archived yet. */
+export function isRoutineItemActiveOn(item: RoutineItem, dayKey: string) {
+  const createdKey = item.created_at.slice(0, 10);
+  if (dayKey < createdKey) return false;
+  if (item.archived_at) {
+    const archivedKey = item.archived_at.slice(0, 10);
+    if (dayKey > archivedKey) return false;
+  }
+  return true;
 }

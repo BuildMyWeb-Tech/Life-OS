@@ -30,6 +30,8 @@ import {
   useRoutineItems,
   useRoutineLogs,
   useToggleRoutine,
+  useCreateRoutineItem,
+  useUpdateRoutineItem,
   routineLogIndex,
   isRoutineDone,
 } from "@/features/routine-db";
@@ -51,6 +53,7 @@ function NegativeHabitsPage() {
 
   const { data: cats = [] } = useCategories();
   const { data: habits = [] } = useHabits();
+  const { data: allHabitsIncArchived = [] } = useHabits(true);
   const { data: logs = [] } = useHabitLogs(from, to);
   const toggle = useToggleHabit();
   const create = useCreateHabit();
@@ -61,6 +64,29 @@ function NegativeHabitsPage() {
   const { data: routineLogsToday = [] } = useRoutineLogs(today, today);
   const routineSetToday = useMemo(() => routineLogIndex(routineLogsToday), [routineLogsToday]);
   const routineToggle = useToggleRoutine();
+  const createRoutineItem = useCreateRoutineItem();
+  const updateRoutineItem = useUpdateRoutineItem();
+
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedHabits = useMemo(
+    () => allHabitsIncArchived.filter((h) => h.archived && h.kind === "negative"),
+    [allHabitsIncArchived],
+  );
+
+  const archiveHabit = (h: Habit) => {
+    update.mutate({ id: h.id, archived: true, archived_at: new Date().toISOString() });
+    const match = findRoutineByName(routineItems, h.name);
+    if (match) {
+      updateRoutineItem.mutate({
+        id: match.id,
+        archived: true,
+        archived_at: new Date().toISOString(),
+      });
+    }
+  };
+  const restoreHabit = (h: Habit) => {
+    update.mutate({ id: h.id, archived: false, archived_at: null });
+  };
 
   const mirror = (habitName: string, done: boolean, date: string) => {
     if (date !== today) return;
@@ -80,19 +106,28 @@ function NegativeHabitsPage() {
 
   const add = () => {
     if (!name.trim()) return;
+    const title = name.trim().startsWith("No ") ? name.trim() : `No ${name.trim()}`;
     create.mutate({
-      name: name.trim().startsWith("No ") ? name.trim() : `No ${name.trim()}`,
+      name: title,
       emoji: "🚫",
       kind: "negative",
       frequency: "daily",
       category_id: avoidCat?.id ?? null,
       sort_order: 999,
     });
+    // Same linkage as the positive Habits page — auto-create the routine
+    // counterpart (unless one already exists) so done/undone stays in sync.
+    if (!findRoutineByName(routineItems, title)) {
+      createRoutineItem.mutate({ title, sort_order: routineItems.length });
+    }
     setName("");
   };
 
   const stats = (id: string) => {
-    let cur = 0, run = 0, longest = 0, succ = 0;
+    let cur = 0,
+      run = 0,
+      longest = 0,
+      succ = 0;
     for (let i = 0; i < WINDOW; i++) {
       const d = daysAgo(i);
       const ok = isDone(set, id, d);
@@ -110,16 +145,31 @@ function NegativeHabitsPage() {
   };
 
   const bestStreak = negs.reduce((m, h) => Math.max(m, stats(h.id).longest), 0);
-  const avgRate = negs.length ? Math.round(negs.reduce((s, h) => s + stats(h.id).rate, 0) / negs.length) : 0;
+  const avgRate = negs.length
+    ? Math.round(negs.reduce((s, h) => s + stats(h.id).rate, 0) / negs.length)
+    : 0;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <PageHeader title="Avoid List" subtitle="Track what you DON'T want to do. Tap a day after surviving it." />
+      <PageHeader
+        title="Avoid List"
+        subtitle="Track what you DON'T want to do. Tap a day after surviving it."
+      />
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <StatCard label="Avoid Habits" value={negs.length} icon={<Ban className="h-4 w-4" />} />
-        <StatCard label="Avg Success Rate" value={`${avgRate}%`} hint={`Last ${WINDOW} days`} accent="success" />
-        <StatCard label="Best Streak" value={`${bestStreak}d`} icon={<Trophy className="h-4 w-4" />} accent="warning" />
+        <StatCard
+          label="Avg Success Rate"
+          value={`${avgRate}%`}
+          hint={`Last ${WINDOW} days`}
+          accent="success"
+        />
+        <StatCard
+          label="Best Streak"
+          value={`${bestStreak}d`}
+          icon={<Trophy className="h-4 w-4" />}
+          accent="warning"
+        />
       </div>
 
       <div className="glass mb-4 flex gap-2 rounded-2xl p-3">
@@ -130,7 +180,9 @@ function NegativeHabitsPage() {
           placeholder="Something to avoid (e.g. Coffee)"
           className="bg-transparent"
         />
-        <Button onClick={add} className="gap-2"><Plus className="h-4 w-4" /> Add</Button>
+        <Button onClick={add} className="gap-2">
+          <Plus className="h-4 w-4" /> Add
+        </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -141,14 +193,23 @@ function NegativeHabitsPage() {
             <div key={h.id} className="glass rounded-2xl p-4">
               <div className="mb-3 flex items-start justify-between">
                 <div>
-                  <p className="text-lg font-semibold"><span className="mr-2">{h.emoji}</span>{h.name}</p>
+                  <p className="text-lg font-semibold">
+                    <span className="mr-2">{h.emoji}</span>
+                    {h.name}
+                  </p>
                   <p className="text-xs text-muted-foreground">Tap today to mark as avoided.</p>
                 </div>
                 <div className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => setEditing(h)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" onClick={() => del.mutate(h.id)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => archiveHabit(h)}
+                    aria-label="Archive"
+                    title="Archive (keeps history)"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -205,6 +266,55 @@ function NegativeHabitsPage() {
         })}
       </div>
 
+      {archivedHabits.length > 0 && (
+        <div className="mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            {showArchived ? "Hide" : "Show"} archived ({archivedHabits.length})
+          </Button>
+          {showArchived && (
+            <div className="glass mt-3 space-y-2 rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground">
+                Archived items keep all of their past history for reports — restore one to start
+                tracking it again, or delete it permanently to erase its history for good.
+              </p>
+              {archivedHabits.map((h) => (
+                <div
+                  key={h.id}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-secondary/30 px-3 py-2"
+                >
+                  <span className="flex items-center gap-2 text-sm">
+                    <span>{h.emoji}</span>
+                    <span className="text-muted-foreground line-through">{h.name}</span>
+                  </span>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => restoreHabit(h)}>
+                      Restore
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={() => {
+                        if (confirm(`Permanently delete "${h.name}" and all of its history?`)) {
+                          del.mutate(h.id);
+                        }
+                      }}
+                    >
+                      Delete forever
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <EditDialog
         habit={editing}
         onClose={() => setEditing(null)}
@@ -241,7 +351,9 @@ function EditDialog({
   return (
     <Dialog open={!!habit} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="glass">
-        <DialogHeader><DialogTitle>Edit Avoid Habit</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Edit Avoid Habit</DialogTitle>
+        </DialogHeader>
         {habit && <EditForm key={habit.id} habit={habit} onClose={onClose} onSave={onSave} />}
       </DialogContent>
     </Dialog>
@@ -272,8 +384,15 @@ function EditForm({
         </div>
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button disabled={!name.trim()} onClick={() => onSave({ name: name.trim(), emoji: emoji.trim() || null })}>Save</Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          disabled={!name.trim()}
+          onClick={() => onSave({ name: name.trim(), emoji: emoji.trim() || null })}
+        >
+          Save
+        </Button>
       </DialogFooter>
     </>
   );

@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useHabits, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
+import { useHabits, useHabitLogs, logIndex, isDone, isHabitActiveOn } from "@/features/habits-db";
 
 export const Route = createFileRoute("/_authenticated/report")({
   ssr: false,
@@ -55,23 +55,22 @@ function ReportPage() {
   const from = days[0].key;
   const to = days[days.length - 1].key;
 
-  const { data: habits = [] } = useHabits();
+  const { data: habits = [] } = useHabits(true);
   const { data: logs = [] } = useHabitLogs(from, to);
   const set = useMemo(() => logIndex(logs), [logs]);
   const positives = habits.filter((h) => h.kind === "positive");
-  const total = positives.length;
 
   const daily = useMemo(() => {
     return days.map(({ date, key, day }) => {
-      const done = total
-        ? positives.filter((h) => isDone(set, h.id, key)).length
-        : 0;
-      const pct = total ? Math.round((done / total) * 100) : 0;
+      const activeToday = positives.filter((h) => isHabitActiveOn(h, key));
+      const totalToday = activeToday.length;
+      const done = totalToday ? activeToday.filter((h) => isDone(set, h.id, key)).length : 0;
+      const pct = totalToday ? Math.round((done / totalToday) * 100) : 0;
       // Week index: split by 7s from day 1 -> week 1..5
       const week = Math.min(4, Math.floor((day - 1) / 7));
-      return { day, key, date, done, pct, week };
+      return { day, key, date, done, pct, week, total: totalToday };
     });
-  }, [days, positives, set, total]);
+  }, [days, positives, set]);
 
   const weeks = useMemo(() => {
     const w = [0, 1, 2, 3, 4].map((wi) => {
@@ -84,13 +83,21 @@ function ReportPage() {
     return w;
   }, [daily]);
 
-  // Per-habit stats for the selected month
+  // Per-habit stats for the selected month — only counts days each habit was
+  // actually active (created and not yet archived), so a habit added or
+  // archived mid-month doesn't get penalized for days it didn't apply, and
+  // a habit created after this month (or archived before it) is left out
+  // entirely rather than showing a misleading 0%.
   const perHabit = useMemo(() => {
-    const rows = positives.map((h) => {
+    const relevantHabits = positives.filter((h) => days.some(({ key }) => isHabitActiveOn(h, key)));
+    const rows = relevantHabits.map((h) => {
       let done = 0;
       let longest = 0;
       let run = 0;
+      let activeDays = 0;
       days.forEach(({ key }) => {
+        if (!isHabitActiveOn(h, key)) return;
+        activeDays++;
         if (isDone(set, h.id, key)) {
           done++;
           run++;
@@ -99,14 +106,21 @@ function ReportPage() {
           run = 0;
         }
       });
-      // current streak = trailing run from most recent day
+      // current streak = trailing run from most recent active day
       let current = 0;
       for (let i = days.length - 1; i >= 0; i--) {
+        if (!isHabitActiveOn(h, days[i].key)) continue;
         if (isDone(set, h.id, days[i].key)) current++;
         else break;
       }
-      const totalDays = days.length;
-      return { h, done, totalDays, rate: totalDays ? Math.round((done / totalDays) * 100) : 0, longest, current };
+      return {
+        h,
+        done,
+        totalDays: activeDays,
+        rate: activeDays ? Math.round((done / activeDays) * 100) : 0,
+        longest,
+        current,
+      };
     });
     return rows.sort((a, b) => b.rate - a.rate);
   }, [positives, days, set]);
@@ -148,18 +162,39 @@ function ReportPage() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
-              <SelectTrigger className="h-9 w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {["January","February","March","April","May","June","July","August","September","October","November","December"].map((mn, i) => (
-                  <SelectItem key={mn} value={String(i)}>{mn}</SelectItem>
+                {[
+"January",
+                  "February",
+                  "March",
+                  "April",
+                  "May",
+                  "June",
+                  "July",
+                  "August",
+                  "September",
+                  "October",
+                  "November",
+                  "December",
+                ].map((mn, i) => (
+                  <SelectItem key={mn} value={String(i)}>
+                    {mn}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-              <SelectTrigger className="h-9 w-[100px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 7 }, (_, i) => now.getFullYear() - 3 + i).map((y) => (
-                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -173,12 +208,18 @@ function ReportPage() {
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Stat label="Month Average" value={`${monthAvg}%`} />
         <Stat label="Perfect Days" value={`${perfectDays}`} />
-        <Stat label="Best Day" value={bestDay ? `${bestDay.pct}%` : "—"} hint={bestDay ? `${monthLabel.split(" ")[0]} ${bestDay.day}` : ""} />
+        <Stat
+          label="Best Day"
+          value={bestDay ? `${bestDay.pct}%` : "—"}
+          hint={bestDay ? `${monthLabel.split(" ")[0]} ${bestDay.day}` : ""}
+        />
       </div>
 
       {/* Area chart */}
       <div className="glass mb-6 rounded-2xl p-4">
-        <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">{monthLabel} — Completion Trend</p>
+        <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">
+          {monthLabel} — Completion Trend
+        </p>
         <div className="h-[220px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={daily} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -189,7 +230,12 @@ function ReportPage() {
                 </linearGradient>
               </defs>
               <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="currentColor" opacity={0.4} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="currentColor" opacity={0.4} />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fontSize: 10 }}
+                stroke="currentColor"
+                opacity={0.4}
+              />
               <Tooltip
                 contentStyle={{
                   background: "var(--card)",
@@ -200,23 +246,38 @@ function ReportPage() {
                 formatter={(v: number) => [`${v}%`, "Completion"]}
                 labelFormatter={(l) => `Day ${l}`}
               />
-              <Area type="monotone" dataKey="pct" stroke="#7BB0FF" strokeWidth={2} fill="url(#reportArea)" />
+              <Area
+                type="monotone"
+                dataKey="pct"
+                stroke="#7BB0FF"
+                strokeWidth={2}
+                fill="url(#reportArea)"
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
         <div className="mt-1 grid grid-cols-5 text-center text-xs italic text-muted-foreground">
-          {weeks.map((w) => (<div key={w.week}>week {w.week}</div>))}
+          {weeks.map((w) => (
+            <div key={w.week}>week {w.week}</div>
+          ))}
         </div>
       </div>
 
       {/* Daily bars */}
       <div className="glass mb-6 rounded-2xl p-4">
-        <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Daily Breakdown</p>
+        <p className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">
+          Daily Breakdown
+        </p>
         <div className="h-[200px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={daily} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="currentColor" opacity={0.4} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="currentColor" opacity={0.4} />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fontSize: 10 }}
+                stroke="currentColor"
+                opacity={0.4}
+              />
               <Tooltip
                 contentStyle={{
                   background: "var(--card)",
@@ -224,7 +285,10 @@ function ReportPage() {
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                formatter={(_v: number, _n, p) => [`${p.payload.done}/${total} (${p.payload.pct}%)`, "Done"]}
+                formatter={(_v: number, _n, p) => [
+                  `${p.payload.done}/${p.payload.total} (${p.payload.pct}%)`,
+                  "Done",
+                ]}
                 labelFormatter={(l) => `Day ${l}`}
               />
               <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
@@ -237,7 +301,10 @@ function ReportPage() {
         </div>
         {/* numbers row */}
         <div className="mt-2 overflow-x-auto">
-          <div className="flex gap-[2px] text-[9px] tabular-nums" style={{ minWidth: daily.length * 22 }}>
+          <div
+            className="flex gap-[2px] text-[9px] tabular-nums"
+            style={{ minWidth: daily.length * 22 }}
+          >
             {daily.map((d) => (
               <div key={d.key} className="flex w-[22px] flex-col items-center">
                 <span style={{ color: WEEK_COLORS[d.week] }}>{d.pct}%</span>
@@ -250,16 +317,15 @@ function ReportPage() {
 
       {/* Weekly donuts */}
       <div className="glass rounded-2xl p-4">
-        <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">Weekly Summary</p>
+        <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">
+          Weekly Summary
+        </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           {weeks.map((w) => (
             <div key={w.week} className="flex flex-col items-center gap-2">
               <Donut value={w.avg} color={w.color} />
               <p className="text-xs italic text-muted-foreground">week {w.week}</p>
-              <div
-                className="h-[3px] w-12 rounded-full"
-                style={{ background: w.color }}
-              />
+              <div className="h-[3px] w-12 rounded-full" style={{ background: w.color }} />
             </div>
           ))}
         </div>
@@ -271,31 +337,59 @@ function ReportPage() {
           <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">
             Per-Habit Analysis · {monthLabel}
           </p>
-
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
-            <TierCard label="Best" name={best?.h.name ?? "—"} value={`${best?.rate ?? 0}%`} emoji={best?.h.emoji ?? "🏆"} tone="success" />
-            <TierCard label="Medium" name={median?.h.name ?? "—"} value={`${median?.rate ?? 0}%`} emoji={median?.h.emoji ?? "⚖️"} tone="warning" />
-            <TierCard label="Worst" name={worst?.h.name ?? "—"} value={`${worst?.rate ?? 0}%`} emoji={worst?.h.emoji ?? "⚠️"} tone="danger" />
+            <TierCard
+              label="Best"
+              name={best?.h.name ?? "—"}
+              value={`${best?.rate ?? 0}%`}
+              emoji={best?.h.emoji ?? "🏆"}
+              tone="success"
+            />
+            <TierCard
+              label="Medium"
+              name={median?.h.name ?? "—"}
+              value={`${median?.rate ?? 0}%`}
+              emoji={median?.h.emoji ?? "⚖️"}
+              tone="warning"
+            />
+            <TierCard
+              label="Worst"
+              name={worst?.h.name ?? "—"}
+              value={`${worst?.rate ?? 0}%`}
+              emoji={worst?.h.emoji ?? "⚠️"}
+              tone="danger"
+            />
           </div>
 
           <div className="space-y-2">
             {perHabit.map((r) => {
               const tone =
-                r.rate >= 80 ? "bg-[color:var(--success)]"
-                : r.rate >= 50 ? "bg-[color:var(--warning)]"
-                : "bg-red-400";
+                r.rate >= 80
+                  ? "bg-[color:var(--success)]"
+                  : r.rate >= 50
+                    ? "bg-[color:var(--warning)]"
+                    : "bg-red-400";
               return (
                 <div key={r.h.id} className="rounded-xl bg-secondary/30 p-3">
                   <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2 text-sm">
                       <span>{r.h.emoji}</span>
                       <span className="truncate font-medium">{r.h.name}</span>
+                      {r.h.archived && (
+                        <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Archived
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
-                      <span>{r.done}/{r.totalDays}</span>
+                      <span>
+                        {r.done}/{r.totalDays}
+                      </span>
                       <span className="text-[color:var(--warning)]">🔥 {r.current}d</span>
                       <span>max {r.longest}d</span>
-                      <span className="w-10 text-right font-semibold text-foreground">{r.rate}%</span>
+                      <span className="w-10 text-right font-semibold text-foreground">
+                        {r.rate}%
+                      </span>
                     </div>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/60">
@@ -315,7 +409,9 @@ function ReportPage() {
                 Push these under-50% habits:{" "}
                 {improve.map((r, i) => (
                   <span key={r.h.id}>
-                    <span className="font-medium">{r.h.emoji} {r.h.name}</span>
+                    <span className="font-medium">
+                      {r.h.emoji} {r.h.name}
+                    </span>
                     <span className="text-muted-foreground"> ({r.rate}%)</span>
                     {i < improve.length - 1 ? ", " : ""}
                   </span>
@@ -380,7 +476,15 @@ function Donut({ value, color }: { value: number; color: string }) {
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="currentColor" strokeOpacity={0.12} strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="currentColor"
+          strokeOpacity={0.12}
+          strokeWidth={stroke}
+          fill="none"
+        />
         <circle
           cx={size / 2}
           cy={size / 2}

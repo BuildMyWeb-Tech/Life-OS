@@ -20,10 +20,8 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   GripVertical,
-  Plus,
   Pencil,
   Trash2,
-  Copy,
   Clock,
   StickyNote,
   ChevronLeft,
@@ -32,6 +30,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader, RowActions } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,7 +49,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   useRoutineItems,
   useRoutineLogs,
-  useCreateRoutineItem,
   useUpdateRoutineItem,
   useDeleteRoutineItem,
   useReorderRoutineItems,
@@ -61,7 +59,6 @@ import {
 } from "@/features/routine-db";
 import { useHabits, useToggleHabit, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
 import { findHabitByTitle } from "@/lib/cross-sync";
-import { PageHeader, RowActions } from "@/components/ui-bits";
 
 export const Route = createFileRoute("/_authenticated/routine")({
   ssr: false,
@@ -105,16 +102,26 @@ function RoutinePage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [filter, setFilter] = useState<RoutineFilter>(loadRoutineFilter);
 
-  // const { data: items = [], isFetched } = useRoutineItems();
   const { data: items = [] } = useRoutineItems();
+  const { data: allItemsIncArchived = [] } = useRoutineItems(true);
   const { data: logs = [] } = useRoutineLogs(selectedDate, selectedDate);
-  const create = useCreateRoutineItem();
   const update = useUpdateRoutineItem();
   const del = useDeleteRoutineItem();
   const reorder = useReorderRoutineItems();
   const toggleRoutine = useToggleRoutine();
 
-  // useEnsureDefaultRoutine(items, isFetched);
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedItems = useMemo(
+    () => allItemsIncArchived.filter((i) => i.archived),
+    [allItemsIncArchived],
+  );
+
+  const archiveItem = (item: RoutineItem) => {
+    update.mutate({ id: item.id, archived: true, archived_at: new Date().toISOString() });
+  };
+  const restoreItem = (item: RoutineItem) => {
+    update.mutate({ id: item.id, archived: false, archived_at: null });
+  };
 
   const { data: habits = [] } = useHabits();
   const { data: habitLogs = [] } = useHabitLogs(selectedDate, selectedDate);
@@ -122,7 +129,6 @@ function RoutinePage() {
   const habitSet = useMemo(() => logIndex(habitLogs), [habitLogs]);
   const doneSet = useMemo(() => routineLogIndex(logs), [logs]);
 
-  const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<RoutineItem | null>(null);
 
   const toggleHold = (item: RoutineItem) => {
@@ -141,7 +147,7 @@ function RoutinePage() {
     const newIdx = items.findIndex((i) => i.id === over.id);
     if (oldIdx < 0 || newIdx < 0) return;
     const next = arrayMove(items, oldIdx, newIdx).map((it, i) => ({ id: it.id, sort_order: i }));
-    reorder.mutate(next);
+reorder.mutate(next);
   };
 
   const toggle = (item: RoutineItem) => {
@@ -155,24 +161,6 @@ function RoutinePage() {
         habitToggle.mutate({ habit_id: matched.id, log_date: selectedDate, done: !done });
       }
     }
-  };
-
-  const add = () => {
-    if (!adding.trim()) return;
-    create.mutate(
-      { title: adding.trim(), sort_order: items.length },
-      { onSuccess: () => toast.success("Activity added") },
-    );
-    setAdding("");
-  };
-
-  const duplicate = (it: RoutineItem) => {
-    create.mutate({
-      title: it.title + " (copy)",
-      time: it.time,
-      notes: it.notes,
-      sort_order: items.length,
-    });
   };
 
   const saveEdit = (item: RoutineItem) => {
@@ -262,18 +250,10 @@ function RoutinePage() {
       </Tabs>
 
       {isToday && (
-        <div className="glass mb-4 flex gap-2 rounded-2xl p-3">
-          <Input
-            value={adding}
-            onChange={(e) => setAdding(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && add()}
-            placeholder="Add a new activity (e.g. Read 20 pages)"
-            className="bg-transparent"
-          />
-          <Button onClick={add} className="gap-2">
-            <Plus className="h-4 w-4" /> Add
-          </Button>
-        </div>
+        <p className="mb-4 text-xs text-muted-foreground">
+          New activities are added from the Habits or Avoid List pages — creating a habit there
+          automatically adds its routine counterpart here, so titles always match.
+        </p>
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -290,8 +270,7 @@ function RoutinePage() {
                 disabled={isFuture}
                 onToggle={() => toggle(item)}
                 onEdit={() => setEditing(item)}
-                onDelete={() => del.mutate(item.id)}
-                onDuplicate={() => duplicate(item)}
+                onDelete={() => archiveItem(item)}
                 showHoldControl={filter === "pending"}
                 onToggleHold={() => toggleHold(item)}
               />
@@ -305,6 +284,53 @@ function RoutinePage() {
         </SortableContext>
       </DndContext>
 
+      {archivedItems.length > 0 && (
+        <div className="mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            {showArchived ? "Hide" : "Show"} archived ({archivedItems.length})
+          </Button>
+          {showArchived && (
+            <div className="glass mt-3 space-y-2 rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground">
+                Archived activities keep all of their past history for reports — restore one to add
+                it back to the daily checklist, or delete it permanently to erase its history for
+                good.
+              </p>
+              {archivedItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-secondary/30 px-3 py-2"
+                >
+                  <span className="text-sm text-muted-foreground line-through">{item.title}</span>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => restoreItem(item)}>
+                      Restore
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={() => {
+                        if (confirm(`Permanently delete "${item.title}" and all of its history?`)) {
+                          del.mutate(item.id);
+                        }
+                      }}
+                    >
+                      Delete forever
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+)}
+        </div>
+      )}
+
       <EditDialog item={editing} onClose={() => setEditing(null)} onSave={saveEdit} />
     </motion.div>
   );
@@ -317,7 +343,6 @@ function SortableRow({
   onToggle,
   onEdit,
   onDelete,
-  onDuplicate,
   showHoldControl,
   onToggleHold,
 }: {
@@ -327,7 +352,6 @@ function SortableRow({
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onDuplicate: () => void;
   showHoldControl: boolean;
   onToggleHold: () => void;
 }) {
@@ -420,7 +444,13 @@ function SortableRow({
         <Button size="icon" variant="ghost" onClick={onEdit}>
           <Pencil className="h-4 w-4" />
         </Button>
-        <Button size="icon" variant="ghost" onClick={onDelete}>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onDelete}
+          aria-label="Archive"
+          title="Archive (keeps history)"
+        >
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
@@ -430,7 +460,7 @@ function SortableRow({
           actions={[
             { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
             {
-              label: "Delete",
+              label: "Archive",
               icon: <Trash2 className="h-4 w-4" />,
               onClick: onDelete,
               destructive: true,
@@ -495,4 +525,4 @@ function EditDialog({
       </DialogContent>
     </Dialog>
   );
-}
+}          

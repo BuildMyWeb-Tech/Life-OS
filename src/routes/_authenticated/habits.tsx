@@ -48,6 +48,7 @@ import {
   useRoutineLogs,
   useToggleRoutine,
   useCreateRoutineItem,
+  useUpdateRoutineItem,
   routineLogIndex,
   isRoutineDone,
 } from "@/features/routine-db";
@@ -79,19 +80,44 @@ function HabitsPage() {
 
   const { data: cats = [] } = useCategories();
   const { data: habits = [], isLoading } = useHabits();
+  const { data: allHabitsIncArchived = [] } = useHabits(true);
   const { data: logs = [] } = useHabitLogs(logFrom, logTo);
   const toggle = useToggleHabit();
   const create = useCreateHabit();
   const update = useUpdateHabit();
   const del = useDeleteHabit();
-  const createRoutineItem = useCreateRoutineItem();
-
 
   // Routine mirror (DB)
   const { data: routineItems = [] } = useRoutineItems();
   const { data: routineLogsToday = [] } = useRoutineLogs(today, today);
   const routineSetToday = useMemo(() => routineLogIndex(routineLogsToday), [routineLogsToday]);
   const routineToggle = useToggleRoutine();
+  const createRoutineItem = useCreateRoutineItem();
+  const updateRoutineItem = useUpdateRoutineItem();
+
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedHabits = useMemo(
+    () => allHabitsIncArchived.filter((h) => h.archived && h.kind === "positive"),
+    [allHabitsIncArchived],
+  );
+
+  // Archiving (not deleting) keeps all of a habit's history intact for past
+  // reports — see the matching routine item too, so the daily checklist and
+  // habit tracker stay in sync instead of one lingering after the other.
+  const archiveHabit = (h: Habit) => {
+    update.mutate({ id: h.id, archived: true, archived_at: new Date().toISOString() });
+    const match = findRoutineByName(routineItems, h.name);
+    if (match) {
+      updateRoutineItem.mutate({
+        id: match.id,
+        archived: true,
+        archived_at: new Date().toISOString(),
+      });
+    }
+  };
+  const restoreHabit = (h: Habit) => {
+    update.mutate({ id: h.id, archived: false, archived_at: null });
+  };
 
   const mirror = (habitName: string, done: boolean, date: string) => {
     if (date !== today) return;
@@ -120,7 +146,9 @@ function HabitsPage() {
       if (isDone(set, id, daysAgo(i))) cur++;
       else break;
     }
-    let longest = 0, run = 0, done = 0;
+    let longest = 0,
+      run = 0,
+      done = 0;
     for (let i = total - 1; i >= 0; i--) {
       if (isDone(set, id, daysAgo(i))) {
         run++;
@@ -189,27 +217,41 @@ function HabitsPage() {
 
       <div className="glass mb-4 flex flex-wrap items-center gap-2 rounded-2xl p-3">
         <Input
-          value={name}
+value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="New habit (e.g. Read 20 pages)"
           className="min-w-[180px] flex-1 bg-transparent"
         />
         <Select value={catId} onValueChange={setCatId}>
-          <SelectTrigger className="w-[170px]"><SelectValue placeholder="Category" /></SelectTrigger>
+          <SelectTrigger className="w-[170px]">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— No category —</SelectItem>
-            {cats.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
+            {cats.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={parentId} onValueChange={setParentId}>
-          <SelectTrigger className="w-[170px]"><SelectValue placeholder="Parent habit" /></SelectTrigger>
+          <SelectTrigger className="w-[170px]">
+            <SelectValue placeholder="Parent habit" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— Top level —</SelectItem>
-            {parents.map((p) => (<SelectItem key={p.id} value={p.id}>↳ Sub of {p.name}</SelectItem>))}
+            {parents.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                ↳ Sub of {p.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        <Button onClick={add} className="gap-2"><Plus className="h-4 w-4" /> Add</Button>
+        <Button onClick={add} className="gap-2">
+          <Plus className="h-4 w-4" /> Add
+        </Button>
       </div>
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
@@ -225,25 +267,49 @@ function HabitsPage() {
             variant="ghost"
             onClick={() => {
               const m = month - 1;
-              if (m < 0) { setMonth(11); setYear((y) => y - 1); } else setMonth(m);
+              if (m < 0) {
+                setMonth(11);
+                setYear((y) => y - 1);
+              } else setMonth(m);
             }}
             title="Previous month"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
-            <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {["January","February","March","April","May","June","July","August","September","October","November","December"].map((mn, i) => (
-                <SelectItem key={mn} value={String(i)}>{mn}</SelectItem>
+              {[
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+              ].map((mn, i) => (
+                <SelectItem key={mn} value={String(i)}>
+                  {mn}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-            <SelectTrigger className="h-8 w-[90px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-[90px]">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {Array.from({ length: 7 }, (_, i) => now.getFullYear() - 3 + i).map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                <SelectItem key={y} value={String(y)}>
+                  {y}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -252,7 +318,10 @@ function HabitsPage() {
             variant="ghost"
             onClick={() => {
               const m = month + 1;
-              if (m > 11) { setMonth(0); setYear((y) => y + 1); } else setMonth(m);
+              if (m > 11) {
+                setMonth(0);
+                setYear((y) => y + 1);
+              } else setMonth(m);
             }}
             title="Next month"
           >
@@ -260,7 +329,6 @@ function HabitsPage() {
           </Button>
         </div>
       </div>
-
 
       <div className="space-y-6">
         {[...cats, { id: "__none__", name: "Uncategorized", color: "#6b7280" }].map((c) => {
@@ -270,7 +338,9 @@ function HabitsPage() {
             <section key={c.id} className="glass overflow-hidden rounded-2xl p-4">
               <div className="mb-3 flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full" style={{ background: c.color }} />
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{c.name}</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  {c.name}
+                </h2>
               </div>
               <div className="overflow-x-auto lg:overflow-visible">
                 <table className="w-full text-sm lg:table-fixed">
@@ -293,7 +363,9 @@ function HabitsPage() {
                       const isOpen = !collapsed[h.id];
                       const s = stats(h.id);
                       const subsToday = subs.filter((sh) => isDone(set, sh.id, today)).length;
-                      const subPct = subs.length ? Math.round((subsToday / subs.length) * 100) : null;
+                      const subPct = subs.length
+                        ? Math.round((subsToday / subs.length) * 100)
+                        : null;
                       const rows = [
                         <HabitRow
                           key={h.id}
@@ -311,7 +383,7 @@ function HabitsPage() {
                             mirror(h.name, next, d);
                           }}
                           onEdit={() => setEditing(h)}
-                          onDelete={() => del.mutate(h.id)}
+                          onDelete={() => archiveHabit(h)}
                         />,
                       ];
                       if (isOpen) {
@@ -330,7 +402,7 @@ function HabitsPage() {
                                 mirror(sh.name, next, d);
                               }}
                               onEdit={() => setEditing(sh)}
-                              onDelete={() => del.mutate(sh.id)}
+                              onDelete={() => archiveHabit(sh)}
                             />,
                           ),
                         );
@@ -344,6 +416,55 @@ function HabitsPage() {
           );
         })}
       </div>
+
+{archivedHabits.length > 0 && (
+        <div className="mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            {showArchived ? "Hide" : "Show"} archived ({archivedHabits.length})
+          </Button>
+          {showArchived && (
+            <div className="glass mt-3 space-y-2 rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground">
+                Archived habits keep all of their past history for reports — restore one to start
+                tracking it again, or delete it permanently to erase its history for good.
+              </p>
+              {archivedHabits.map((h) => (
+                <div
+                  key={h.id}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-secondary/30 px-3 py-2"
+                >
+                  <span className="flex items-center gap-2 text-sm">
+                    <span>{h.emoji}</span>
+                    <span className="text-muted-foreground line-through">{h.name}</span>
+                  </span>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => restoreHabit(h)}>
+                      Restore
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={() => {
+                        if (confirm(`Permanently delete "${h.name}" and all of its history?`)) {
+                          del.mutate(h.id);
+                        }
+                      }}
+                    >
+                      Delete forever
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <EditHabitDialog
         habit={editing}
@@ -392,7 +513,11 @@ function HabitRow({
         <div className="flex items-center gap-2">
           {!!subCount && subCount > 0 && (
             <button onClick={onToggleOpen} className="text-muted-foreground hover:text-foreground">
-              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              {isOpen ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
             </button>
           )}
           {indent && <GitBranch className="h-3 w-3 text-muted-foreground" />}
@@ -431,8 +556,18 @@ function HabitRow({
       <td className="px-2 py-2 text-right tabular-nums">{stats.rate}%</td>
       <td className="px-2 py-2 text-right">
         <div className="flex justify-end gap-1">
-          <Button size="icon" variant="ghost" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
-          <Button size="icon" variant="ghost" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
+          <Button size="icon" variant="ghost" onClick={onEdit}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onDelete}
+            aria-label="Archive"
+            title="Archive (keeps history)"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </td>
     </tr>
@@ -453,8 +588,12 @@ function EditHabitDialog({
   return (
     <Dialog open={!!habit} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="glass">
-        <DialogHeader><DialogTitle>Edit Habit</DialogTitle></DialogHeader>
-        {habit && <EditForm key={habit.id} habit={habit} cats={cats} onClose={onClose} onSave={onSave} />}
+        <DialogHeader>
+          <DialogTitle>Edit Habit</DialogTitle>
+        </DialogHeader>
+        {habit && (
+          <EditForm key={habit.id} habit={habit} cats={cats} onClose={onClose} onSave={onSave} />
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -488,19 +627,33 @@ function EditForm({
         <div>
           <Label>Category</Label>
           <Select value={catId} onValueChange={setCatId}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">— No category —</SelectItem>
-              {cats.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
+              {cats.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
         <Button
           disabled={!name.trim()}
-          onClick={() => onSave({ name: name.trim(), emoji: emoji.trim() || null, category_id: catId === "none" ? null : catId })}
+          onClick={() =>
+            onSave({
+              name: name.trim(),
+              emoji: emoji.trim() || null,
+              category_id: catId === "none" ? null : catId,
+            })
+          }
         >
           Save
         </Button>
