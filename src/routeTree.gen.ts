@@ -18,6 +18,7 @@ import { Route as AuthenticatedVisionBoardRouteImport } from './routes/_authenti
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedRoutineRouteImport } from './routes/_authenticated/routine'
 import { Route as AuthenticatedReportRouteImport } from './routes/_authenticated/report'
+import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
 import { Route as AuthenticatedNegativeHabitsRouteImport } from './routes/_authenticated/negative-habits'
 import { Route as AuthenticatedHabitsRouteImport } from './routes/_authenticated/habits'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -70,6 +71,11 @@ const AuthenticatedRoutineRoute = AuthenticatedRoutineRouteImport.update({
 const AuthenticatedReportRoute = AuthenticatedReportRouteImport.update({
   id: '/report',
   path: '/report',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedNotesRoute = AuthenticatedNotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedNegativeHabitsRoute =
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
+  '/notes': typeof AuthenticatedNotesRoute
   '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
   '/tasks': typeof AuthenticatedTasksRoute
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/habits': typeof AuthenticatedHabitsRoute
   '/negative-habits': typeof AuthenticatedNegativeHabitsRoute
+  '/notes': typeof AuthenticatedNotesRoute
   '/report': typeof AuthenticatedReportRoute
   '/routine': typeof AuthenticatedRoutineRoute
   '/tasks': typeof AuthenticatedTasksRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/habits': typeof AuthenticatedHabitsRoute
   '/_authenticated/negative-habits': typeof AuthenticatedNegativeHabitsRoute
+  '/_authenticated/notes': typeof AuthenticatedNotesRoute
   '/_authenticated/report': typeof AuthenticatedReportRoute
   '/_authenticated/routine': typeof AuthenticatedRoutineRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/habits'
     | '/negative-habits'
+    | '/notes'
     | '/report'
     | '/routine'
     | '/tasks'
@@ -204,6 +214,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/habits'
     | '/negative-habits'
+    | '/notes'
     | '/report'
     | '/routine'
     | '/tasks'
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/habits'
     | '/_authenticated/negative-habits'
+    | '/_authenticated/notes'
     | '/_authenticated/report'
     | '/_authenticated/routine'
     | '/_authenticated/tasks'
@@ -302,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReportRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/notes': {
+      id: '/_authenticated/notes'
+      path: '/notes'
+      fullPath: '/notes'
+      preLoaderRoute: typeof AuthenticatedNotesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/negative-habits': {
       id: '/_authenticated/negative-habits'
       path: '/negative-habits'
@@ -370,6 +389,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHabitsRoute: typeof AuthenticatedHabitsRoute
   AuthenticatedNegativeHabitsRoute: typeof AuthenticatedNegativeHabitsRoute
+  AuthenticatedNotesRoute: typeof AuthenticatedNotesRoute
   AuthenticatedReportRoute: typeof AuthenticatedReportRoute
   AuthenticatedRoutineRoute: typeof AuthenticatedRoutineRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
@@ -386,6 +406,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHabitsRoute: AuthenticatedHabitsRoute,
   AuthenticatedNegativeHabitsRoute: AuthenticatedNegativeHabitsRoute,
+  AuthenticatedNotesRoute: AuthenticatedNotesRoute,
   AuthenticatedReportRoute: AuthenticatedReportRoute,
   AuthenticatedRoutineRoute: AuthenticatedRoutineRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,

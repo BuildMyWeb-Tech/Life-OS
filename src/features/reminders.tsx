@@ -17,62 +17,6 @@ type Fire = {
   onDone?: () => void;
 };
 
-// ------- audio: generate a repeating beep with Web Audio, no asset -------
-function makeAlarm() {
-  let ctx: AudioContext | null = null;
-  let stop = false;
-  let timer: number | null = null;
-
-  const beep = () => {
-    if (!ctx || stop) return;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(880, now);
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.4, now + 0.02);
-    gain.gain.linearRampToValueAtTime(0, now + 0.35);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.4);
-  };
-
-  return {
-    start() {
-      stop = false;
-      try {
-        const AC =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (!AC) return;
-        ctx = new AC();
-        beep();
-        timer = window.setInterval(beep, 700);
-        // Auto-stop after 30s so it isn't annoying forever
-        window.setTimeout(() => this.stop(), 30_000);
-      } catch {
-        /* audio blocked */
-      }
-    },
-    stop() {
-      stop = true;
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-      if (ctx) {
-        try {
-          ctx.close();
-        } catch {
-          /* noop */
-        }
-        ctx = null;
-      }
-    },
-  };
-}
-
 const FIRED_KEY = "lifeos:reminders:fired";
 function loadFired(): Set<string> {
   try {
@@ -113,7 +57,6 @@ export function Reminders() {
   const toggleRoutine = useToggleRoutine();
 
   const [active, setActive] = useState<Fire | null>(null);
-  const alarmRef = useRef<ReturnType<typeof makeAlarm> | null>(null);
   const firedRef = useRef<Set<string>>(new Set());
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
     "unsupported",
@@ -150,10 +93,8 @@ export function Reminders() {
       if (data.action === "done") {
         fire.onDone?.();
         setActive((cur) => (cur?.key === fire.key ? null : cur));
-        alarmRef.current?.stop();
       } else if (data.action === "snooze") {
         setActive((cur) => (cur?.key === fire.key ? null : cur));
-        alarmRef.current?.stop();
         window.setTimeout(() => fireReminderRef.current?.(fire), 5 * 60 * 1000);
         toast.info(`Snoozed "${fire.title}" for 5 minutes`);
       } else {
@@ -301,13 +242,10 @@ export function Reminders() {
         }
       })();
 
-      // Toast
+      // Toast + in-app modal — no audio beep on any device. The OS
+      // notification above (when permitted) is the actual alert mechanism,
+      // with its own system sound/vibration; this is just the visual layer.
       toast(`⏰ ${f.title}`, { description: f.meta, duration: 10_000 });
-      // In-app modal + alarm
-      alarmRef.current?.stop();
-      const a = makeAlarm();
-      alarmRef.current = a;
-      a.start();
       setActive(f);
     };
     fireReminderRef.current = fireReminder;
@@ -333,8 +271,6 @@ export function Reminders() {
   }, [tasks, nodes, items, logs, today, updateTask, updateNode, toggleRoutine]);
 
   const dismiss = () => {
-    alarmRef.current?.stop();
-    alarmRef.current = null;
     setActive(null);
   };
 

@@ -11,6 +11,8 @@ export type RoutineItem = {
   held: boolean;
   archived: boolean;
   archived_at: string | null;
+  frequency: "daily" | "weekly";
+  scheduled_weekdays: number[] | null;
   created_at: string;
 };
 
@@ -175,4 +177,20 @@ export function isRoutineItemActiveOn(item: RoutineItem, dayKey: string) {
     if (dayKey > archivedKey) return false;
   }
   return true;
+}
+
+/** Was this routine item scheduled for this specific weekday? Same idea as
+ * isHabitScheduledOn — a weekly item ("Go temple" every Tuesday) shouldn't
+ * appear as pending, or count toward the day's %, on any other day. */
+export function isRoutineItemScheduledOn(item: RoutineItem, dayKey: string) {
+  if (item.frequency !== "weekly") return true;
+  if (!item.scheduled_weekdays || item.scheduled_weekdays.length === 0) return true;
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const weekday = new Date(y, m - 1, d).getDay();
+  return item.scheduled_weekdays.includes(weekday);
+}
+
+/** Combined gate: existed (not archived) AND scheduled for this day. */
+export function isRoutineItemCountedOn(item: RoutineItem, dayKey: string) {
+  return isRoutineItemActiveOn(item, dayKey) && isRoutineItemScheduledOn(item, dayKey);
 }

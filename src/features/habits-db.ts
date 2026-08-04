@@ -25,6 +25,7 @@ export type Habit = {
   sort_order: number;
   archived: boolean;
   archived_at: string | null;
+  scheduled_weekdays: number[] | null;
   created_at: string;
 };
 
@@ -240,4 +241,22 @@ export function isHabitActiveOn(h: Habit, dayKey: string) {
     if (dayKey > archivedKey) return false;
   }
   return true;
+}
+
+/** Was this habit actually scheduled to happen on this specific weekday?
+ * Daily habits (or anything without a weekly schedule set) apply every day;
+ * weekly habits only apply on their chosen weekday(s) — e.g. "Wash dress"
+ * only counts on Sundays, so it's neither pending nor missed any other day. */
+export function isHabitScheduledOn(h: Habit, dayKey: string) {
+  if (h.frequency !== "weekly") return true;
+  if (!h.scheduled_weekdays || h.scheduled_weekdays.length === 0) return true;
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const weekday = new Date(y, m - 1, d).getDay();
+  return h.scheduled_weekdays.includes(weekday);
+}
+
+/** Combined gate used everywhere a percentage/stat is computed: the habit
+ * must both have existed (not archived) AND be scheduled for this day. */
+export function isHabitCountedOn(h: Habit, dayKey: string) {
+  return isHabitActiveOn(h, dayKey) && isHabitScheduledOn(h, dayKey);
 }
