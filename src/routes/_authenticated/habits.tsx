@@ -41,6 +41,7 @@ import {
   useDeleteHabit,
   logIndex,
   isDone,
+  isHabitCountedOn,
   type Habit,
 } from "@/features/habits-db";
 import {
@@ -89,8 +90,8 @@ function HabitsPage() {
 
   // Routine mirror (DB)
   const { data: routineItems = [] } = useRoutineItems();
-  const { data: routineLogsToday = [] } = useRoutineLogs(today, today);
-  const routineSetToday = useMemo(() => routineLogIndex(routineLogsToday), [routineLogsToday]);
+  const { data: routineLogsWide = [] } = useRoutineLogs(logFrom, logTo);
+  const routineSetWide = useMemo(() => routineLogIndex(routineLogsWide), [routineLogsWide]);
   const routineToggle = useToggleRoutine();
   const createRoutineItem = useCreateRoutineItem();
   const updateRoutineItem = useUpdateRoutineItem();
@@ -120,10 +121,9 @@ function HabitsPage() {
   };
 
   const mirror = (habitName: string, done: boolean, date: string) => {
-    if (date !== today) return;
     const item = findRoutineByName(routineItems, habitName);
     if (!item) return;
-    const currentlyDone = isRoutineDone(routineSetToday, item.id, date);
+    const currentlyDone = isRoutineDone(routineSetWide, item.id, date);
     if (currentlyDone === done) return;
     routineToggle.mutate({ item_id: item.id, log_date: date, done });
   };
@@ -139,18 +139,24 @@ function HabitsPage() {
   const positive = habits.filter((h) => h.kind === "positive");
   const subsOf = (id: string) => positive.filter((h) => h.parent_id === id);
 
-  const stats = (id: string) => {
+  const stats = (h: Habit) => {
     const total = 90;
     let cur = 0;
     for (let i = 0; i < total; i++) {
-      if (isDone(set, id, daysAgo(i))) cur++;
+      const d = daysAgo(i);
+      if (!isHabitCountedOn(h, d)) continue;
+      if (isDone(set, h.id, d)) cur++;
       else break;
     }
     let longest = 0,
       run = 0,
-      done = 0;
+      done = 0,
+      applicableDays = 0;
     for (let i = total - 1; i >= 0; i--) {
-      if (isDone(set, id, daysAgo(i))) {
+      const d = daysAgo(i);
+      if (!isHabitCountedOn(h, d)) continue;
+      applicableDays++;
+      if (isDone(set, h.id, d)) {
         run++;
         done++;
         if (run > longest) longest = run;
@@ -158,11 +164,15 @@ function HabitsPage() {
         run = 0;
       }
     }
-    return { current: cur, longest, rate: Math.round((done / total) * 100) };
+    return {
+      current: cur,
+      longest,
+      rate: applicableDays ? Math.round((done / applicableDays) * 100) : 0,
+    };
   };
 
   const doneToday = positive.filter((h) => isDone(set, h.id, today)).length;
-  const ranked = positive.map((h) => ({ h, s: stats(h.id) })).sort((a, b) => b.s.rate - a.s.rate);
+  const ranked = positive.map((h) => ({ h, s: stats(h) })).sort((a, b) => b.s.rate - a.s.rate);
   const best = ranked[0];
 
   const add = () => {
@@ -217,7 +227,7 @@ function HabitsPage() {
 
       <div className="glass mb-4 flex flex-wrap items-center gap-2 rounded-2xl p-3">
         <Input
-value={name}
+          value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="New habit (e.g. Read 20 pages)"
@@ -247,7 +257,7 @@ value={name}
                 ↳ Sub of {p.name}
               </SelectItem>
             ))}
-          </SelectContent>
+</SelectContent>
         </Select>
         <Button onClick={add} className="gap-2">
           <Plus className="h-4 w-4" /> Add
@@ -361,7 +371,7 @@ value={name}
                     {items.flatMap((h) => {
                       const subs = subsOf(h.id);
                       const isOpen = !collapsed[h.id];
-                      const s = stats(h.id);
+                      const s = stats(h);
                       const subsToday = subs.filter((sh) => isDone(set, sh.id, today)).length;
                       const subPct = subs.length
                         ? Math.round((subsToday / subs.length) * 100)
@@ -395,7 +405,7 @@ value={name}
                               indent
                               days={days}
                               set={set}
-                              stats={stats(sh.id)}
+                              stats={stats(sh)}
                               onToggle={(d) => {
                                 const next = !isDone(set, sh.id, d);
                                 toggle.mutate({ habit_id: sh.id, log_date: d, done: next });
@@ -417,7 +427,7 @@ value={name}
         })}
       </div>
 
-{archivedHabits.length > 0 && (
+      {archivedHabits.length > 0 && (
         <div className="mt-6">
           <Button
             variant="outline"
@@ -473,6 +483,14 @@ value={name}
         onSave={(patch) => {
           if (!editing) return;
           update.mutate({ id: editing.id, ...patch });
+          const match = findRoutineByName(routineItems, editing.name);
+          if (match) {
+            updateRoutineItem.mutate({
+              id: match.id,
+              frequency: patch.frequency,
+              scheduled_weekdays: patch.scheduled_weekdays,
+            });
+          }
           setEditing(null);
         }}
       />
@@ -539,7 +557,7 @@ function HabitRow({
               className={cn(
                 "mx-auto block h-6 w-6 rounded-full border border-border transition lg:h-5 lg:w-5",
                 done
-                  ? "border-[color:var(--success)]/70 bg-[color:var(--success)]/70 shadow-[0_0_12px_rgba(34,197,94,0.35)]"
+? "border-[color:var(--success)]/70 bg-[color:var(--success)]/70 shadow-[0_0_12px_rgba(34,197,94,0.35)]"
                   : "bg-secondary/40 hover:bg-secondary",
               )}
               aria-label={`${h.name} ${d}`}
@@ -583,7 +601,13 @@ function EditHabitDialog({
   habit: Habit | null;
   cats: { id: string; name: string }[];
   onClose: () => void;
-  onSave: (patch: { name: string; emoji: string | null; category_id: string | null }) => void;
+  onSave: (patch: {
+    name: string;
+    emoji: string | null;
+    category_id: string | null;
+    frequency: "daily" | "weekly";
+    scheduled_weekdays: number[] | null;
+  }) => void;
 }) {
   return (
     <Dialog open={!!habit} onOpenChange={(v) => !v && onClose()}>
@@ -599,6 +623,68 @@ function EditHabitDialog({
   );
 }
 
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function WeekdaySchedulePicker({
+  frequency,
+  onFrequency,
+  weekdays,
+  onWeekdays,
+}: {
+  frequency: "daily" | "weekly";
+  onFrequency: (v: "daily" | "weekly") => void;
+  weekdays: number[];
+  onWeekdays: (v: number[]) => void;
+}) {
+  const toggleDay = (d: number) => {
+    onWeekdays(weekdays.includes(d) ? weekdays.filter((x) => x !== d) : [...weekdays, d].sort());
+  };
+  return (
+    <div className="space-y-2">
+      <Label>Schedule</Label>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={frequency === "daily" ? "default" : "outline"}
+          onClick={() => onFrequency("daily")}
+          className="flex-1"
+        >
+          Every day
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={frequency === "weekly" ? "default" : "outline"}
+          onClick={() => onFrequency("weekly")}
+          className="flex-1"
+        >
+          Specific days
+        </Button>
+      </div>
+      {frequency === "weekly" && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {WEEKDAY_LABELS.map((label, i) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => toggleDay(i)}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                weekdays.includes(i)
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditForm({
   habit,
   cats,
@@ -608,11 +694,21 @@ function EditForm({
   habit: Habit;
   cats: { id: string; name: string }[];
   onClose: () => void;
-  onSave: (patch: { name: string; emoji: string | null; category_id: string | null }) => void;
+  onSave: (patch: {
+    name: string;
+    emoji: string | null;
+    category_id: string | null;
+    frequency: "daily" | "weekly";
+    scheduled_weekdays: number[] | null;
+  }) => void;
 }) {
   const [name, setName] = useState(habit.name);
   const [emoji, setEmoji] = useState(habit.emoji ?? "");
   const [catId, setCatId] = useState(habit.category_id ?? "none");
+  const [frequency, setFrequency] = useState<"daily" | "weekly">(
+    habit.frequency === "weekly" ? "weekly" : "daily",
+  );
+  const [weekdays, setWeekdays] = useState<number[]>(habit.scheduled_weekdays ?? []);
   return (
     <>
       <div className="space-y-4">
@@ -640,6 +736,12 @@ function EditForm({
             </SelectContent>
           </Select>
         </div>
+        <WeekdaySchedulePicker
+          frequency={frequency}
+          onFrequency={setFrequency}
+          weekdays={weekdays}
+          onWeekdays={setWeekdays}
+        />
       </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
@@ -652,6 +754,8 @@ function EditForm({
               name: name.trim(),
               emoji: emoji.trim() || null,
               category_id: catId === "none" ? null : catId,
+              frequency,
+              scheduled_weekdays: frequency === "weekly" ? weekdays : null,
             })
           }
         >
@@ -660,4 +764,4 @@ function EditForm({
       </DialogFooter>
     </>
   );
-}
+}                  

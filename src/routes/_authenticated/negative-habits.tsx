@@ -24,6 +24,7 @@ import {
   useDeleteHabit,
   logIndex,
   isDone,
+  isHabitCountedOn,
   type Habit,
 } from "@/features/habits-db";
 import {
@@ -61,8 +62,8 @@ function NegativeHabitsPage() {
   const del = useDeleteHabit();
 
   const { data: routineItems = [] } = useRoutineItems();
-  const { data: routineLogsToday = [] } = useRoutineLogs(today, today);
-  const routineSetToday = useMemo(() => routineLogIndex(routineLogsToday), [routineLogsToday]);
+  const { data: routineLogsWide = [] } = useRoutineLogs(from, to);
+  const routineSetWide = useMemo(() => routineLogIndex(routineLogsWide), [routineLogsWide]);
   const routineToggle = useToggleRoutine();
   const createRoutineItem = useCreateRoutineItem();
   const updateRoutineItem = useUpdateRoutineItem();
@@ -89,10 +90,9 @@ function NegativeHabitsPage() {
   };
 
   const mirror = (habitName: string, done: boolean, date: string) => {
-    if (date !== today) return;
     const item = findRoutineByName(routineItems, habitName);
     if (!item) return;
-    const currentlyDone = isRoutineDone(routineSetToday, item.id, date);
+    const currentlyDone = isRoutineDone(routineSetWide, item.id, date);
     if (currentlyDone === done) return;
     routineToggle.mutate({ item_id: item.id, log_date: date, done });
   };
@@ -123,30 +123,34 @@ function NegativeHabitsPage() {
     setName("");
   };
 
-  const stats = (id: string) => {
+  const stats = (h: Habit) => {
     let cur = 0,
       run = 0,
       longest = 0,
-      succ = 0;
+      succ = 0,
+      applicable = 0,
+      curBroken = false;
     for (let i = 0; i < WINDOW; i++) {
       const d = daysAgo(i);
-      const ok = isDone(set, id, d);
+      if (!isHabitCountedOn(h, d)) continue;
+      applicable++;
+      const ok = isDone(set, h.id, d);
       if (ok) {
         succ++;
         run++;
-        if (i === 0 || cur === i) cur = run;
+        if (!curBroken) cur = run;
         longest = Math.max(longest, run);
       } else {
-        if (i === 0) cur = 0;
         run = 0;
+        curBroken = true;
       }
     }
-    return { current: cur, longest, rate: Math.round((succ / WINDOW) * 100) };
+    return { current: cur, longest, rate: applicable ? Math.round((succ / applicable) * 100) : 0 };
   };
 
-  const bestStreak = negs.reduce((m, h) => Math.max(m, stats(h.id).longest), 0);
+  const bestStreak = negs.reduce((m, h) => Math.max(m, stats(h).longest), 0);
   const avgRate = negs.length
-    ? Math.round(negs.reduce((s, h) => s + stats(h.id).rate, 0) / negs.length)
+    ? Math.round(negs.reduce((s, h) => s + stats(h).rate, 0) / negs.length)
     : 0;
 
   return (
@@ -187,7 +191,7 @@ function NegativeHabitsPage() {
 
       <div className="grid gap-3 md:grid-cols-2">
         {negs.map((h) => {
-          const s = stats(h.id);
+          const s = stats(h);
           const todayOK = isDone(set, h.id, today);
           return (
             <div key={h.id} className="glass rounded-2xl p-4">
@@ -321,6 +325,14 @@ function NegativeHabitsPage() {
         onSave={(patch) => {
           if (!editing) return;
           update.mutate({ id: editing.id, ...patch });
+          const match = findRoutineByName(routineItems, editing.name);
+          if (match) {
+            updateRoutineItem.mutate({
+              id: match.id,
+              frequency: patch.frequency,
+              scheduled_weekdays: patch.scheduled_weekdays,
+            });
+          }
           setEditing(null);
         }}
       />
@@ -339,6 +351,68 @@ function Stat({ label, value, icon }: { label: string; value: string; icon?: Rea
   );
 }
 
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function WeekdaySchedulePicker({
+  frequency,
+  onFrequency,
+  weekdays,
+  onWeekdays,
+}: {
+  frequency: "daily" | "weekly";
+  onFrequency: (v: "daily" | "weekly") => void;
+  weekdays: number[];
+  onWeekdays: (v: number[]) => void;
+}) {
+  const toggleDay = (d: number) => {
+    onWeekdays(weekdays.includes(d) ? weekdays.filter((x) => x !== d) : [...weekdays, d].sort());
+  };
+  return (
+    <div className="space-y-2">
+      <Label>Schedule</Label>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={frequency === "daily" ? "default" : "outline"}
+          onClick={() => onFrequency("daily")}
+          className="flex-1"
+        >
+          Every day
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={frequency === "weekly" ? "default" : "outline"}
+          onClick={() => onFrequency("weekly")}
+          className="flex-1"
+        >
+          Specific days
+        </Button>
+      </div>
+      {frequency === "weekly" && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {WEEKDAY_LABELS.map((label, i) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => toggleDay(i)}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                weekdays.includes(i)
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditDialog({
   habit,
   onClose,
@@ -346,7 +420,12 @@ function EditDialog({
 }: {
   habit: Habit | null;
   onClose: () => void;
-  onSave: (p: { name: string; emoji: string | null }) => void;
+  onSave: (p: {
+    name: string;
+    emoji: string | null;
+    frequency: "daily" | "weekly";
+    scheduled_weekdays: number[] | null;
+  }) => void;
 }) {
   return (
     <Dialog open={!!habit} onOpenChange={(v) => !v && onClose()}>
@@ -367,10 +446,19 @@ function EditForm({
 }: {
   habit: Habit;
   onClose: () => void;
-  onSave: (p: { name: string; emoji: string | null }) => void;
+  onSave: (p: {
+    name: string;
+    emoji: string | null;
+    frequency: "daily" | "weekly";
+    scheduled_weekdays: number[] | null;
+  }) => void;
 }) {
   const [name, setName] = useState(habit.name);
   const [emoji, setEmoji] = useState(habit.emoji ?? "");
+  const [frequency, setFrequency] = useState<"daily" | "weekly">(
+    habit.frequency === "weekly" ? "weekly" : "daily",
+  );
+  const [weekdays, setWeekdays] = useState<number[]>(habit.scheduled_weekdays ?? []);
   return (
     <>
       <div className="space-y-4">
@@ -382,6 +470,12 @@ function EditForm({
           <Label>Emoji</Label>
           <Input value={emoji} onChange={(e) => setEmoji(e.target.value)} maxLength={4} />
         </div>
+        <WeekdaySchedulePicker
+          frequency={frequency}
+          onFrequency={setFrequency}
+          weekdays={weekdays}
+          onWeekdays={setWeekdays}
+        />
       </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
@@ -389,7 +483,14 @@ function EditForm({
         </Button>
         <Button
           disabled={!name.trim()}
-          onClick={() => onSave({ name: name.trim(), emoji: emoji.trim() || null })}
+          onClick={() =>
+            onSave({
+              name: name.trim(),
+              emoji: emoji.trim() || null,
+              frequency,
+              scheduled_weekdays: frequency === "weekly" ? weekdays : null,
+            })
+          }
         >
           Save
         </Button>

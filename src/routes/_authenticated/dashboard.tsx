@@ -6,7 +6,7 @@ import { useCurrentUsername } from "@/lib/auth";
 import { todayKey, daysAgo } from "@/lib/storage";
 import { PageHeader, StatCard } from "@/components/ui-bits";
 import { Progress } from "@/components/ui/progress";
-import { useHabits, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
+import { useHabits, useHabitLogs, logIndex, isDone, isHabitCountedOn } from "@/features/habits-db";
 import {
   useRoutineItems,
   useRoutineLogs,
@@ -84,21 +84,23 @@ function Dashboard() {
   const totalToday = routineItems.length;
   const dailyPct = totalToday ? Math.round((doneToday / totalToday) * 100) : 0;
 
-  const habitsDone = positiveHabits.filter((h) => isDone(habitSet, h.id, today)).length;
-  const avoidedToday = negativeHabits.filter((h) => isDone(habitSet, h.id, today)).length;
+  const habitsApplicableToday = positiveHabits.filter((h) => isHabitCountedOn(h, today));
+  const avoidApplicableToday = negativeHabits.filter((h) => isHabitCountedOn(h, today));
+  const habitsDone = habitsApplicableToday.filter((h) => isDone(habitSet, h.id, today)).length;
+  const avoidedToday = avoidApplicableToday.filter((h) => isDone(habitSet, h.id, today)).length;
 
   // Combined progress: positive habits + avoid list (negatives).
-  // Only counts a habit on days on/after it was actually created — otherwise
-  // a habit added yesterday would count as "missed" for days before it
-  // existed and drag the weekly/monthly % down incorrectly.
+  // Only counts a habit on days it actually existed (not yet archived) AND
+  // was scheduled to happen (daily habits count every day; weekly ones only
+  // on their chosen weekday) — otherwise a habit added yesterday, or a
+  // Sunday-only habit on a Tuesday, would incorrectly drag the % down.
   const { weeklyPct, monthlyPct } = useMemo(() => {
     const calcFor = (days: string[]) => {
       let done = 0;
       let total = 0;
       const tally = (h: (typeof positiveHabits)[number]) => {
-        const createdKey = h.created_at.slice(0, 10);
         days.forEach((d) => {
-          if (d < createdKey) return; // habit didn't exist yet on this day
+          if (!isHabitCountedOn(h, d)) return;
           total++;
           if (isDone(habitSet, h.id, d)) done++;
         });
@@ -115,10 +117,10 @@ function Dashboard() {
   }, [positiveHabits, negativeHabits, habitSet]);
 
   const todayCombinedPct = useMemo(() => {
-    const total = positiveHabits.length + negativeHabits.length;
+    const total = habitsApplicableToday.length + avoidApplicableToday.length;
     if (!total) return 0;
     return Math.round(((habitsDone + avoidedToday) / total) * 100);
-  }, [positiveHabits.length, negativeHabits.length, habitsDone, avoidedToday]);
+  }, [habitsApplicableToday.length, avoidApplicableToday.length, habitsDone, avoidedToday]);
 
   const { current, longest } = useMemo(() => {
     let cur = 0;
@@ -126,8 +128,8 @@ function Dashboard() {
     let run = 0;
     for (let i = 0; i < 30; i++) {
       const d = daysAgo(i);
-      const existingPos = positiveHabits.filter((h) => h.created_at.slice(0, 10) <= d);
-      const existingNeg = negativeHabits.filter((h) => h.created_at.slice(0, 10) <= d);
+      const existingPos = positiveHabits.filter((h) => isHabitCountedOn(h, d));
+      const existingNeg = negativeHabits.filter((h) => isHabitCountedOn(h, d));
       const totalExisting = existingPos.length + existingNeg.length;
       if (totalExisting === 0) {
         if (i === 0) cur = 0;
@@ -152,8 +154,8 @@ function Dashboard() {
 
   const quote = QUOTES[new Date().getDate() % QUOTES.length];
   const pendingRoutine = routineItems.filter((i) => !isRoutineDone(routineSet, i.id, today));
-  const pendingHabits = positiveHabits.length - habitsDone;
-  const pendingAvoid = negativeHabits.length - avoidedToday;
+  const pendingHabits = habitsApplicableToday.length - habitsDone;
+  const pendingAvoid = avoidApplicableToday.length - avoidedToday;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -171,14 +173,14 @@ function Dashboard() {
         />
         <StatCard
           label="Habits Today"
-          value={`${habitsDone}/${positiveHabits.length}`}
+          value={`${habitsDone}/${habitsApplicableToday.length}`}
           hint="Keep the streak alive"
           icon={<ListChecks className="h-4 w-4" />}
           accent="accent"
         />
         <StatCard
           label="Avoided Today"
-          value={`${avoidedToday}/${negativeHabits.length}`}
+          value={`${avoidedToday}/${avoidApplicableToday.length}`}
           hint={pendingAvoid ? `${pendingAvoid} still to resist` : "All resisted ✨"}
           icon={<Ban className="h-4 w-4" />}
           accent="success"

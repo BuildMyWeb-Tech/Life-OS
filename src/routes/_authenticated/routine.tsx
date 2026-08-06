@@ -55,6 +55,7 @@ import {
   useToggleRoutine,
   routineLogIndex,
   isRoutineDone,
+  isRoutineItemScheduledOn,
   type RoutineItem,
 } from "@/features/routine-db";
 import { useHabits, useToggleHabit, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
@@ -147,7 +148,7 @@ function RoutinePage() {
     const newIdx = items.findIndex((i) => i.id === over.id);
     if (oldIdx < 0 || newIdx < 0) return;
     const next = arrayMove(items, oldIdx, newIdx).map((it, i) => ({ id: it.id, sort_order: i }));
-reorder.mutate(next);
+    reorder.mutate(next);
   };
 
   const toggle = (item: RoutineItem) => {
@@ -165,18 +166,34 @@ reorder.mutate(next);
 
   const saveEdit = (item: RoutineItem) => {
     update.mutate(
-      { id: item.id, title: item.title, time: item.time, notes: item.notes },
+      {
+        id: item.id,
+        title: item.title,
+        time: item.time,
+        notes: item.notes,
+        frequency: item.frequency,
+        scheduled_weekdays: item.scheduled_weekdays,
+      },
       { onSuccess: () => toast.success("Updated") },
     );
     setEditing(null);
   };
 
-  const done = items.filter((i) => isRoutineDone(doneSet, i.id, selectedDate)).length;
-  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
+  // Weekly items (e.g. "Wash dress" every Sunday) only apply on their
+  // scheduled weekday(s) — everywhere else on this page (progress %, the
+  // checklist itself) should only ever see items that are actually due on
+  // the day being viewed.
+  const scheduledItems = useMemo(
+    () => items.filter((i) => isRoutineItemScheduledOn(i, selectedDate)),
+    [items, selectedDate],
+  );
+
+  const done = scheduledItems.filter((i) => isRoutineDone(doneSet, i.id, selectedDate)).length;
+  const pct = scheduledItems.length ? Math.round((done / scheduledItems.length) * 100) : 0;
   const isToday = selectedDate === today;
   const isFuture = selectedDate > today;
 
-  const visibleItems = items.filter((i) => {
+  const visibleItems = scheduledItems.filter((i) => {
     if (filter === "all") return true;
     const isChecked = isRoutineDone(doneSet, i.id, selectedDate);
     return filter === "completed" ? isChecked : !isChecked;
@@ -200,7 +217,7 @@ reorder.mutate(next);
         </Button>
         <div className="flex flex-col items-center text-center">
           <span className="text-sm font-semibold">{prettyDate(selectedDate)}</span>
-          {!isToday && (
+{!isToday && (
             <button
               onClick={() => setSelectedDate(today)}
               className="text-xs text-primary hover:underline"
@@ -227,7 +244,7 @@ reorder.mutate(next);
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-medium">Progress {isToday ? "today" : "on this day"}</span>
           <span className="text-muted-foreground">
-            {done} / {items.length} · {pct}%
+            {done} / {scheduledItems.length} · {pct}%
           </span>
         </div>
         <Progress value={pct} />
@@ -243,9 +260,9 @@ reorder.mutate(next);
         className="mb-4"
       >
         <TabsList className="grid w-full grid-cols-3 sm:w-auto">
-          <TabsTrigger value="all">All ({items.length})</TabsTrigger>
+          <TabsTrigger value="all">All ({scheduledItems.length})</TabsTrigger>
           <TabsTrigger value="completed">Completed ({done})</TabsTrigger>
-          <TabsTrigger value="pending">Pending ({items.length - done})</TabsTrigger>
+          <TabsTrigger value="pending">Pending ({scheduledItems.length - done})</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -327,7 +344,7 @@ reorder.mutate(next);
                 </div>
               ))}
             </div>
-)}
+          )}
         </div>
       )}
 
@@ -380,7 +397,7 @@ function SortableRow({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <Checkbox
+<Checkbox
         checked={checked}
         disabled={disabled}
         onCheckedChange={onToggle}
@@ -514,6 +531,57 @@ function EditDialog({
                 rows={3}
               />
             </div>
+            <div className="space-y-2">
+              <Label>Schedule</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={draft.frequency === "weekly" ? "outline" : "default"}
+                  onClick={() =>
+                    setDraft({ ...draft, frequency: "daily", scheduled_weekdays: null })
+                  }
+                  className="flex-1"
+                >
+                  Every day
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={draft.frequency === "weekly" ? "default" : "outline"}
+                  onClick={() => setDraft({ ...draft, frequency: "weekly" })}
+                  className="flex-1"
+                >
+                  Specific days
+                </Button>
+              </div>
+              {draft.frequency === "weekly" && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, i) => {
+                    const active = (draft.scheduled_weekdays ?? []).includes(i);
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => {
+                          const cur = draft.scheduled_weekdays ?? [];
+                          const next = active ? cur.filter((x) => x !== i) : [...cur, i].sort();
+                          setDraft({ ...draft, scheduled_weekdays: next });
+                        }}
+                        className={
+                          "rounded-full border px-2.5 py-1 text-xs transition-colors " +
+                          (active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-muted-foreground hover:text-foreground")
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
         <DialogFooter>
@@ -525,4 +593,4 @@ function EditDialog({
       </DialogContent>
     </Dialog>
   );
-}          
+}

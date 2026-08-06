@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Flame, Ban, ListChecks } from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
-import { useHabits, useHabitLogs, logIndex, isDone } from "@/features/habits-db";
+import { useHabits, useHabitLogs, logIndex, isDone, isHabitCountedOn } from "@/features/habits-db";
 import {
   useRoutineItems,
   useRoutineLogs,
@@ -40,7 +40,7 @@ function CalendarPage() {
   const from = toKey(monthStart);
   const to = toKey(monthEnd);
 
-  const { data: habits = [] } = useHabits();
+  const { data: habits = [] } = useHabits(true);
   const { data: logs = [] } = useHabitLogs(from, to);
   const { data: routineItems = [] } = useRoutineItems();
   const { data: routineLogs = [] } = useRoutineLogs(from, to);
@@ -65,9 +65,10 @@ function CalendarPage() {
   }, [monthStart]);
 
   const dayScore = (key: string) => {
-    if (!positives.length) return 0;
-    const done = positives.filter((h) => isDone(set, h.id, key)).length;
-    return Math.round((done / positives.length) * 100);
+    const activeToday = positives.filter((h) => isHabitCountedOn(h, key));
+    if (!activeToday.length) return 0;
+    const done = activeToday.filter((h) => isDone(set, h.id, key)).length;
+    return Math.round((done / activeToday.length) * 100);
   };
 
   const monthLabel = cursor.toLocaleString("default", { month: "long", year: "numeric" });
@@ -80,11 +81,19 @@ function CalendarPage() {
         subtitle="Tap any day to see everything that happened (or didn't)."
         action={
           <div className="flex items-center gap-2">
-            <Button size="icon" variant="ghost" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
+            >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="min-w-[160px] text-center font-semibold">{monthLabel}</span>
-            <Button size="icon" variant="ghost" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
+            >
               <ChevronRight className="h-4 w-4" />
             </Button>
             <Button
@@ -104,7 +113,11 @@ function CalendarPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="glass rounded-2xl p-4">
           <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] uppercase tracking-wider text-muted-foreground">
-            {WEEKDAYS.map((d) => (<div key={d} className="py-1">{d}</div>))}
+            {WEEKDAYS.map((d) => (
+              <div key={d} className="py-1">
+                {d}
+              </div>
+            ))}
           </div>
           <div className="grid grid-cols-7 gap-1">
             {cells.map((d) => {
@@ -129,17 +142,26 @@ function CalendarPage() {
                         : undefined,
                   }}
                 >
-                  <span className={cn("absolute left-1.5 top-1 text-xs font-semibold tabular-nums", isToday && "rounded-full bg-primary px-1.5 text-primary-foreground")}>
+                  <span
+                    className={cn(
+                      "absolute left-1.5 top-1 text-xs font-semibold tabular-nums",
+                      isToday && "rounded-full bg-primary px-1.5 text-primary-foreground",
+                    )}
+                  >
                     {d.getDate()}
                   </span>
                   {score > 0 && (
-                    <span className="absolute bottom-1 right-1.5 text-[10px] font-medium text-primary-foreground/90">{score}%</span>
+                    <span className="absolute bottom-1 right-1.5 text-[10px] font-medium text-primary-foreground/90">
+                      {score}%
+                    </span>
                   )}
                 </button>
               );
             })}
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">Color intensity = % of positive habits completed that day.</p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Color intensity = % of positive habits completed that day.
+          </p>
         </div>
 
         {selected && (
@@ -176,11 +198,17 @@ function DayPanel({
   routineSet: Set<string>;
 }) {
   const dateObj = new Date(dateKey + "T00:00:00");
-  const label = dateObj.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-  const posDone = (positives ?? []).filter((h) => isDone(set, h.id, dateKey));
-  const posMissed = (positives ?? []).filter((h) => !isDone(set, h.id, dateKey));
-  const negSurvived = (negatives ?? []).filter((h) => isDone(set, h.id, dateKey));
-  const negFailed = (negatives ?? []).filter((h) => !isDone(set, h.id, dateKey));
+  const label = dateObj.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+  const posApplicable = (positives ?? []).filter((h) => isHabitCountedOn(h, dateKey));
+  const negApplicable = (negatives ?? []).filter((h) => isHabitCountedOn(h, dateKey));
+  const posDone = posApplicable.filter((h) => isDone(set, h.id, dateKey));
+  const posMissed = posApplicable.filter((h) => !isDone(set, h.id, dateKey));
+  const negSurvived = negApplicable.filter((h) => isDone(set, h.id, dateKey));
+  const negFailed = negApplicable.filter((h) => !isDone(set, h.id, dateKey));
   const routineDone = routineItems.filter((i) => isRoutineDone(routineSet, i.id, dateKey));
 
   return (
@@ -190,34 +218,61 @@ function DayPanel({
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Day Details</p>
           <h2 className="text-xl font-semibold">{label}</h2>
         </div>
-        <Button size="icon" variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>
+        <Button size="icon" variant="ghost" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
       </div>
 
       <Section title="Positive Habits" tone="success">
-        <List items={posDone.map((h) => `${h.emoji ?? "✓"} ${h.name}`)} emptyText="None completed" />
+        <List
+          items={posDone.map((h) => `${h.emoji ?? "✓"} ${h.name}`)}
+          emptyText="None completed"
+        />
         {!!posMissed.length && (
-          <p className="mt-2 text-xs text-muted-foreground">Missed: {posMissed.map((h) => h.name).join(", ")}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Missed: {posMissed.map((h) => h.name).join(", ")}
+          </p>
         )}
       </Section>
 
       <Section title="Avoided" icon={<Ban className="h-3 w-3" />}>
         <List items={negSurvived.map((h) => h.name)} emptyText="None tracked" />
         {!!negFailed.length && (
-          <p className="mt-2 text-xs text-[color:var(--destructive)]">Slipped: {negFailed.map((h) => h.name).join(", ")}</p>
+          <p className="mt-2 text-xs text-[color:var(--destructive)]">
+            Slipped: {negFailed.map((h) => h.name).join(", ")}
+          </p>
         )}
       </Section>
 
       <Section title="Routine" icon={<ListChecks className="h-3 w-3" />}>
-        <List items={routineDone.map((r) => `${r.time ?? ""} ${r.title}`.trim())} emptyText="No routine items completed" />
+        <List
+          items={routineDone.map((r) => `${r.time ?? ""} ${r.title}`.trim())}
+          emptyText="No routine items completed"
+        />
       </Section>
     </div>
   );
 }
 
-function Section({ title, children, tone, icon }: { title: string; children: React.ReactNode; tone?: "success"; icon?: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  tone,
+  icon,
+}: {
+  title: string;
+  children: React.ReactNode;
+  tone?: "success";
+  icon?: React.ReactNode;
+}) {
   return (
     <div className="mb-4">
-      <p className={cn("mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider", tone === "success" ? "text-[color:var(--success)]" : "text-muted-foreground")}>
+      <p
+        className={cn(
+          "mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider",
+          tone === "success" ? "text-[color:var(--success)]" : "text-muted-foreground",
+        )}
+      >
         {icon ?? <Flame className="h-3 w-3" />} {title}
       </p>
       {children}
@@ -229,7 +284,11 @@ function List({ items, emptyText }: { items: string[]; emptyText: string }) {
   if (!items.length) return <p className="text-xs text-muted-foreground">{emptyText}</p>;
   return (
     <ul className="space-y-1 text-sm">
-      {items.map((it, i) => (<li key={i} className="rounded-md bg-secondary/30 px-2 py-1">{it}</li>))}
+      {items.map((it, i) => (
+        <li key={i} className="rounded-md bg-secondary/30 px-2 py-1">
+          {it}
+        </li>
+      ))}
     </ul>
   );
 }
