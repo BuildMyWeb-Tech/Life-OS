@@ -81,6 +81,48 @@ function saveCategoryOrder(order: string[]) {
   }
 }
 
+/** Continues a numbered list on Enter: typing "1. new" then pressing Enter
+ * inserts "2. " on the next line automatically, and so on. Pressing Enter
+ * on an empty numbered line (just "3. " with nothing after it) removes the
+ * numbering and ends the list instead of continuing to add empty numbers. */
+function handleDescriptionKeyDown(
+  e: React.KeyboardEvent<HTMLTextAreaElement>,
+  value: string,
+  setValue: (v: string) => void,
+) {
+  if (e.key !== "Enter") return;
+  const el = e.currentTarget;
+  const cursor = el.selectionStart;
+  const before = value.slice(0, cursor);
+  const after = value.slice(cursor);
+  const lastLineStart = before.lastIndexOf("\n") + 1;
+  const currentLine = before.slice(lastLineStart);
+  const match = currentLine.match(/^(\d+)\.\s(.*)$/);
+  if (!match) return; // not a numbered line — let the default newline happen
+
+  e.preventDefault();
+  const num = parseInt(match[1], 10);
+  const content = match[2];
+
+  if (content.trim() === "") {
+    // Empty numbered line — remove the dangling "N. " and stop the list.
+    const newBefore = before.slice(0, lastLineStart);
+    const newValue = newBefore + after;
+    setValue(newValue);
+    requestAnimationFrame(() => {
+      el.selectionStart = el.selectionEnd = newBefore.length;
+    });
+    return;
+  }
+
+  const insertion = `\n${num + 1}. `;
+  const newValue = before + insertion + after;
+  setValue(newValue);
+  requestAnimationFrame(() => {
+    el.selectionStart = el.selectionEnd = before.length + insertion.length;
+  });
+}
+
 async function copyToClipboard(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -494,8 +536,9 @@ function NoteFormDialog({
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              onKeyDown={(e) => handleDescriptionKeyDown(e, description, setDescription)}
               rows={10}
-              placeholder="Write as much as you need…"
+              placeholder="Write as much as you need… try starting a line with '1. ' for an auto-numbered list"
             />
           </div>
         </div>

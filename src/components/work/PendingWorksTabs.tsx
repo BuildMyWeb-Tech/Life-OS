@@ -43,14 +43,6 @@ import {
   type Priority,
 } from "./work-helpers";
 
-// ---------------------------------------------------------------------------
-// Self-contained readers for Asks / Client Calls / Client Leads — these tabs
-// only need to *read and lightly act on* the data here (complete/hide/call),
-// full management still happens on their own dedicated pages, so a light
-// direct query keeps this file decoupled from those features' exact hook
-// shapes.
-// ---------------------------------------------------------------------------
-
 type AskRow = {
   id: string;
   title: string;
@@ -130,10 +122,6 @@ async function copyToClipboard(text: string) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Tab persistence
-// ---------------------------------------------------------------------------
-
 const TAB_OPTIONS = [
   "all",
   "shown",
@@ -166,10 +154,6 @@ function savePendingTab(v: PendingTab) {
     /* ignore */
   }
 }
-
-// ---------------------------------------------------------------------------
-// To-Do list renderer — now actually shows sub-tasks under each main task.
-// ---------------------------------------------------------------------------
 
 function TodoSection({
   list,
@@ -242,8 +226,6 @@ function TodoSection({
                         </span>
                       )}
                     </span>
-                    {/* Sub-tasks — this is the actual fix: they were never
-                        fetched/rendered here before. */}
                     {subs.length > 0 && (
                       <ul className="mt-1 space-y-1" onClick={(e) => e.stopPropagation()}>
                         {subs.map((s) => (
@@ -299,10 +281,6 @@ function TodoSection({
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Notes tab
-// ---------------------------------------------------------------------------
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -383,16 +361,29 @@ function NotesTab() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Asks tab
-// ---------------------------------------------------------------------------
-
 function AsksTab({ today, byParent }: { today: string; byParent: Map<string | null, WorkNode[]> }) {
   const { data: asks = [] } = useAsksLite();
-  const visible = asks.filter((a) => !a.completed && !isEffectivelyHeld(a.held, a.held_until));
-  const workAskLines = useMemo(() => buildAskLines(byParent, today), [byParent, today]);
+  const visibleAll = asks.filter((a) => !a.completed && !isEffectivelyHeld(a.held, a.held_until));
+  const workAskLinesAll = useMemo(() => buildAskLines(byParent, today), [byParent, today]);
 
-  if (visible.length === 0 && workAskLines.length === 0) {
+  const [personFilter, setPersonFilter] = useState("__all__");
+  const personOptions = useMemo(() => {
+    const names = new Set<string>();
+    workAskLinesAll.forEach((l) => l.leaf.ask_person_name && names.add(l.leaf.ask_person_name));
+    visibleAll.forEach((a) => a.person_name && names.add(a.person_name));
+    return [...names].sort();
+  }, [workAskLinesAll, visibleAll]);
+
+  const workAskLines =
+    personFilter === "__all__"
+      ? workAskLinesAll
+      : workAskLinesAll.filter((l) => l.leaf.ask_person_name === personFilter);
+  const visible =
+    personFilter === "__all__"
+      ? visibleAll
+      : visibleAll.filter((a) => a.person_name === personFilter);
+
+  if (workAskLinesAll.length === 0 && visibleAll.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
         Nothing pending in Asks.
@@ -402,6 +393,21 @@ function AsksTab({ today, byParent }: { today: string; byParent: Map<string | nu
 
   return (
     <div className="space-y-4">
+      {personOptions.length > 0 && (
+        <select
+          value={personFilter}
+          onChange={(e) => setPersonFilter(e.target.value)}
+          className="w-[200px] rounded-md border border-border bg-background px-3 py-2 text-sm"
+        >
+          <option value="__all__">All people</option>
+          {personOptions.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      )}
+
       {workAskLines.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-2 flex items-center gap-2">
@@ -427,7 +433,7 @@ function AsksTab({ today, byParent }: { today: string; byParent: Map<string | nu
                     <p className="text-xs text-muted-foreground">
                       {leaf.ask_person_name && <>from {leaf.ask_person_name} · </>}
                       {leaf.due_date}
-{leaf.due_time ? ` · ${leaf.due_time}` : ""}
+                      {leaf.due_time ? ` · ${leaf.due_time}` : ""}
                       {overdue && " · Overdue"}
                     </p>
                   )}
@@ -465,13 +471,15 @@ function AsksTab({ today, byParent }: { today: string; byParent: Map<string | nu
           </div>
         </div>
       )}
+
+      {workAskLines.length === 0 && visible.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          No asks from {personFilter}.
+        </div>
+      )}
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Calls tab
-// ---------------------------------------------------------------------------
 
 function CallsTab() {
   const { data: calls = [] } = useCallsLite();
@@ -513,10 +521,6 @@ function CallsTab() {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Leads tab
-// ---------------------------------------------------------------------------
 
 function LeadsTab() {
   const { data: leads = [] } = useLeadsLite();
@@ -560,10 +564,6 @@ function LeadsTab() {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Deactivated tab
-// ---------------------------------------------------------------------------
 
 function DeactivatedGroups({
   lines,
@@ -617,10 +617,6 @@ function DeactivatedGroups({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main tabbed Pending Works view
-// ---------------------------------------------------------------------------
-
 export function PendingWorksTabs({
   byParent,
   today,
@@ -647,7 +643,7 @@ export function PendingWorksTabs({
     [lines],
   );
   const hiddenLines = useMemo(
-() => lines.filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until)),
+    () => lines.filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until)),
     [lines],
   );
 

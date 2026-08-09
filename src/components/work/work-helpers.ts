@@ -128,13 +128,13 @@ export function buildPendingLines(
   const walk = (parentId: string | null, trail: WorkNode[]) => {
     const kids = byParent.get(parentId) ?? [];
     for (const n of kids) {
-      if (n.deactivated) continue; // skip deactivated subtree entirely
-      if (isNodeDone(n, today)) continue; // skip completed subtree
+      if (n.deactivated) continue;
+      if (isNodeDone(n, today)) continue;
       const nextTrail = [...trail, n];
       const grand = byParent.get(n.id) ?? [];
       const incompleteChildren = grand.filter((c) => !c.deactivated && !isNodeDone(c, today));
       if (incompleteChildren.length === 0) {
-        out.push({ path: nextTrail, leaf: n });
+        if (!n.is_ask) out.push({ path: nextTrail, leaf: n });
       } else {
         walk(n.id, nextTrail);
       }
