@@ -28,6 +28,8 @@ export function EditForm({
     priority: Priority;
     due_date: string | null;
     due_time: string | null;
+    is_ask: boolean;
+    ask_person_name: string | null;
   }) => void;
 }) {
   const [title, setTitle] = useState(node.title);
@@ -36,6 +38,8 @@ export function EditForm({
   const [priority, setPriority] = useState<Priority>(node.priority ?? null);
   const [dueDate, setDueDate] = useState(node.due_date ?? "");
   const [dueTime, setDueTime] = useState(node.due_time ? node.due_time.slice(0, 5) : "");
+  const [isAsk, setIsAsk] = useState(node.is_ask ?? false);
+  const [askPerson, setAskPerson] = useState(node.ask_person_name ?? "");
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -91,6 +95,43 @@ export function EditForm({
       {dueDate && dueTime && (
         <p className="text-xs text-primary">⏰ You'll be reminded at that time.</p>
       )}
+      <div className="space-y-2 rounded-lg border border-border/60 p-2.5">
+        <Label>Ask</Label>
+        <p className="text-xs text-muted-foreground">
+          Mark this as an ask to show it on the Asks page and the Asks tab of Pending Works, with
+          its full company → task path. Default is No.
+        </p>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={!isAsk ? "default" : "outline"}
+            onClick={() => setIsAsk(false)}
+            className="flex-1"
+          >
+            No
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={isAsk ? "default" : "outline"}
+            onClick={() => setIsAsk(true)}
+            className="flex-1"
+          >
+            Yes
+          </Button>
+        </div>
+        {isAsk && (
+          <div className="space-y-1 pt-1">
+            <Label className="text-xs">Person (optional)</Label>
+            <Input
+              value={askPerson}
+              onChange={(e) => setAskPerson(e.target.value)}
+              placeholder="e.g. Mauli"
+            />
+          </div>
+        )}
+      </div>
       <DialogFooter>
         <Button
           onClick={() =>
@@ -101,6 +142,8 @@ export function EditForm({
               priority,
               due_date: dueDate || null,
               due_time: dueTime ? `${dueTime}:00` : null,
+              is_ask: isAsk,
+              ask_person_name: isAsk ? askPerson.trim() || null : null,
             })
           }
         >

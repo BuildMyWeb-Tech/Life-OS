@@ -118,7 +118,8 @@ export function collectDescendantIds(nodeId: string, byParent: Map<string | null
   return out;
 }
 
-/** Flatten the tree into leaf lines that are NOT done, skipping entire completed subtrees. */
+/** Flatten the tree into leaf lines that are NOT done, skipping entire
+ * completed subtrees AND entire deactivated subtrees. */
 export function buildPendingLines(
   byParent: Map<string | null, WorkNode[]>,
   today: string,
@@ -127,10 +128,11 @@ export function buildPendingLines(
   const walk = (parentId: string | null, trail: WorkNode[]) => {
     const kids = byParent.get(parentId) ?? [];
     for (const n of kids) {
+      if (n.deactivated) continue; // skip deactivated subtree entirely
       if (isNodeDone(n, today)) continue; // skip completed subtree
       const nextTrail = [...trail, n];
       const grand = byParent.get(n.id) ?? [];
-      const incompleteChildren = grand.filter((c) => !isNodeDone(c, today));
+      const incompleteChildren = grand.filter((c) => !c.deactivated && !isNodeDone(c, today));
       if (incompleteChildren.length === 0) {
         out.push({ path: nextTrail, leaf: n });
       } else {
@@ -152,10 +154,53 @@ export function buildCompletedLines(
   const walk = (parentId: string | null, trail: WorkNode[]) => {
     const kids = byParent.get(parentId) ?? [];
     for (const n of kids) {
+      if (n.deactivated) continue; // deactivated items don't show as completed either
       const nextTrail = [...trail, n];
       if (isNodeDone(n, today)) {
         out.push({ path: nextTrail, leaf: n });
         continue; // don't descend into an already-completed branch
+      }
+      walk(n.id, nextTrail);
+    }
+  };
+  walk(null, []);
+  return out;
+}
+
+/** Flatten the tree into leaf lines for deactivated nodes — walks the whole
+ * tree and stops descending as soon as it finds a deactivated node (its
+ * entire subtree is considered part of the same deactivation, same pattern
+ * as a completed subtree). */
+export function buildDeactivatedLines(byParent: Map<string | null, WorkNode[]>): FlatLine[] {
+  const out: FlatLine[] = [];
+  const walk = (parentId: string | null, trail: WorkNode[]) => {
+    const kids = byParent.get(parentId) ?? [];
+    for (const n of kids) {
+      const nextTrail = [...trail, n];
+      if (n.deactivated) {
+        out.push({ path: nextTrail, leaf: n });
+        continue; // subtree is covered by the same deactivation
+      }
+      walk(n.id, nextTrail);
+    }
+  };
+  walk(null, []);
+  return out;
+}
+
+/** Every node marked as an "ask" (is_ask = true), anywhere in the tree,
+ * shown with its full breadcrumb path — a company, category, work, or task
+ * can each independently be marked as an ask, so this doesn't stop
+ * recursing once it finds one. Done and deactivated nodes are excluded. */
+export function buildAskLines(byParent: Map<string | null, WorkNode[]>, today: string): FlatLine[] {
+  const out: FlatLine[] = [];
+  const walk = (parentId: string | null, trail: WorkNode[]) => {
+    const kids = byParent.get(parentId) ?? [];
+    for (const n of kids) {
+      if (n.deactivated) continue;
+      const nextTrail = [...trail, n];
+      if (n.is_ask && !isNodeDone(n, today)) {
+        out.push({ path: nextTrail, leaf: n });
       }
       walk(n.id, nextTrail);
     }

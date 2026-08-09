@@ -25,6 +25,9 @@ import {
   Clock,
   AlertTriangle,
   FolderInput,
+  PauseCircle,
+  PlayCircle,
+  HelpCircle,
 } from "lucide-react";
 import { RowActions } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
@@ -54,6 +57,7 @@ export function TreeLevel({
   onMove,
   onToggleDone,
   onSetPriority,
+  onToggleDeactivate,
   onReorderSiblings,
   today,
 }: {
@@ -68,6 +72,7 @@ export function TreeLevel({
   onMove: (n: WorkNode) => void;
   onToggleDone: (n: WorkNode) => void;
   onSetPriority: (n: WorkNode, p: Priority) => void;
+  onToggleDeactivate: (n: WorkNode) => void;
   onReorderSiblings: (parent_id: string | null, ids: string[]) => void;
   today: string;
 }) {
@@ -115,6 +120,7 @@ export function TreeLevel({
               onMove={() => onMove(n)}
               onToggleDone={() => onToggleDone(n)}
               onSetPriority={(p) => onSetPriority(n, p)}
+              onToggleDeactivate={() => onToggleDeactivate(n)}
               effectiveDone={isNodeDone(n, today)}
               today={today}
             >
@@ -131,6 +137,7 @@ export function TreeLevel({
                   onMove={onMove}
                   onToggleDone={onToggleDone}
                   onSetPriority={onSetPriority}
+                  onToggleDeactivate={onToggleDeactivate}
                   onReorderSiblings={onReorderSiblings}
                   today={today}
                 />
@@ -155,6 +162,7 @@ function NodeRow({
   onMove,
   onToggleDone,
   onSetPriority,
+  onToggleDeactivate,
   effectiveDone,
   today,
   children,
@@ -170,6 +178,7 @@ function NodeRow({
   onMove: () => void;
   onToggleDone: () => void;
   onSetPriority: (p: Priority) => void;
+  onToggleDeactivate: () => void;
   effectiveDone: boolean;
   today: string;
   children?: React.ReactNode;
@@ -194,6 +203,7 @@ function NodeRow({
         className={cn(
           "group flex items-start gap-1.5 rounded-xl border border-border bg-card p-2.5 transition-colors hover:bg-accent/20 sm:gap-2",
           depth === 0 && "bg-gradient-to-r from-primary/5 to-transparent",
+          node.deactivated && "opacity-60",
         )}
       >
         <button
@@ -246,6 +256,17 @@ function NodeRow({
                 One-time
               </span>
             )}
+            {node.is_ask && (
+              <span className="flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                <HelpCircle className="h-2.5 w-2.5" />
+                Ask{node.ask_person_name ? ` · ${node.ask_person_name}` : ""}
+              </span>
+            )}
+            {node.deactivated && (
+              <span className="rounded-full border border-border bg-secondary/60 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Deactivated
+              </span>
+            )}
             <QuickPriorityMenu value={node.priority} onChange={(p) => onSetPriority(p)} />
           </div>
           {dueLine && (
@@ -288,6 +309,23 @@ function NodeRow({
           <Button size="icon" variant="ghost" onClick={onMove} aria-label="Move">
             <FolderInput className="h-4 w-4" />
           </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onToggleDeactivate}
+            aria-label={node.deactivated ? "Activate" : "Deactivate"}
+            title={
+              node.deactivated
+                ? "Activate (bring back into Pending Works)"
+                : "Deactivate (pause this and everything under it)"
+            }
+          >
+            {node.deactivated ? (
+              <PlayCircle className="h-4 w-4" />
+            ) : (
+              <PauseCircle className="h-4 w-4" />
+            )}
+          </Button>
           <Button size="icon" variant="ghost" onClick={onDelete} aria-label="Delete">
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
@@ -303,6 +341,15 @@ function NodeRow({
               },
               { label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: onEdit },
               { label: "Move", icon: <FolderInput className="h-4 w-4" />, onClick: onMove },
+              {
+                label: node.deactivated ? "Activate" : "Deactivate",
+                icon: node.deactivated ? (
+                  <PlayCircle className="h-4 w-4" />
+                ) : (
+                  <PauseCircle className="h-4 w-4" />
+                ),
+                onClick: onToggleDeactivate,
+              },
               {
                 label: "Delete",
                 icon: <Trash2 className="h-4 w-4" />,

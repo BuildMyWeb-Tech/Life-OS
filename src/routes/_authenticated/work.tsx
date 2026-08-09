@@ -85,6 +85,8 @@ function WorkPage() {
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [addDueDate, setAddDueDate] = useState("");
   const [addDueTime, setAddDueTime] = useState("");
+  const [addIsAsk, setAddIsAsk] = useState(false);
+  const [addAskPerson, setAddAskPerson] = useState("");
   const COLLAPSE_KEY = "lifeos:work:collapsed";
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -179,6 +181,8 @@ function WorkPage() {
         priority: addPriority,
         due_date: canBeOneTime && addDueDate ? addDueDate : null,
         due_time: canBeOneTime && addDueTime ? `${addDueTime}:00` : null,
+        is_ask: addIsAsk,
+        ask_person_name: addIsAsk ? addAskPerson.trim() || null : null,
       },
       {
         onSuccess: () => {
@@ -188,6 +192,8 @@ function WorkPage() {
           setShowPriorityPicker(false);
           setAddDueDate("");
           setAddDueTime("");
+          setAddIsAsk(false);
+          setAddAskPerson("");
           if (keepOpen) {
             toast.success("Added — ready for the next one");
             addTitleInputRef.current?.focus();
@@ -223,6 +229,14 @@ function WorkPage() {
     update.mutate({ id: n.id, priority: p });
   };
 
+  const toggleDeactivate = (n: WorkNode) => {
+    const next = !n.deactivated;
+    update.mutate(
+      { id: n.id, deactivated: next },
+      { onSuccess: () => toast.success(next ? "Deactivated" : "Activated") },
+    );
+  };
+
   const moveNode = (newParentId: string | null) => {
     if (!movingNode) return;
     const siblings = byParent.get(newParentId) ?? [];
@@ -243,7 +257,7 @@ function WorkPage() {
   const resetEverything = () => {
     const ids = nodes.filter((n) => n.done).map((n) => n.id);
     if (ids.length === 0) {
-      toast.info("Nothing to reset — everything is already pending.");
+toast.info("Nothing to reset — everything is already pending.");
       return;
     }
     if (
@@ -287,7 +301,7 @@ function WorkPage() {
                 className="gap-1.5 px-2.5 text-xs"
                 onClick={() => changeView("completed")}
               >
-<CheckCircle2 className="h-3.5 w-3.5" /> Completed ({completedCount})
+                <CheckCircle2 className="h-3.5 w-3.5" /> Completed ({completedCount})
               </Button>
               <Button
                 variant="outline"
@@ -367,6 +381,7 @@ function WorkPage() {
           today={today}
           onToggleDone={toggleDone}
           onSetPriority={setPriority}
+          onToggleDeactivate={toggleDeactivate}
         />
       )}
 
@@ -420,6 +435,7 @@ function WorkPage() {
               onMove={setMovingNode}
               onToggleDone={toggleDone}
               onSetPriority={setPriority}
+              onToggleDeactivate={toggleDeactivate}
               today={today}
               onReorderSiblings={(parent_id, ids) => {
                 const rows = ids.map((id, i) => ({ id, sort_order: i, parent_id }));
@@ -464,6 +480,43 @@ function WorkPage() {
               >
                 + Set priority (optional)
               </button>
+            )}
+          </div>
+          <div className="space-y-2 rounded-lg border border-border/60 p-2.5">
+            <Label>Ask</Label>
+            <p className="text-xs text-muted-foreground">
+              Mark this as an ask to show it on the Asks page and the Asks tab of Pending Works,
+              with its full company → task path. Default is No.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={!addIsAsk ? "default" : "outline"}
+                onClick={() => setAddIsAsk(false)}
+                className="flex-1"
+              >
+                No
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={addIsAsk ? "default" : "outline"}
+                onClick={() => setAddIsAsk(true)}
+                className="flex-1"
+              >
+                Yes
+              </Button>
+            </div>
+            {addIsAsk && (
+              <div className="space-y-1 pt-1">
+                <Label className="text-xs">Person (optional)</Label>
+                <Input
+                  value={addAskPerson}
+                  onChange={(e) => setAddAskPerson(e.target.value)}
+                  placeholder="e.g. Mauli"
+                />
+              </div>
             )}
           </div>
           {addingUnder && addingUnder.depth >= 2 && (
@@ -524,6 +577,8 @@ function WorkPage() {
                 setAddingUnder(null);
                 setAddPriority(null);
                 setShowPriorityPicker(false);
+                setAddIsAsk(false);
+                setAddAskPerson("");
               }}
             >
               Cancel
@@ -568,4 +623,4 @@ function WorkPage() {
       />
     </div>
   );
-}                
+}

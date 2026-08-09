@@ -13,10 +13,16 @@ export type WorkNode = {
   done: boolean;
   done_on: string | null;
   task_kind: "recurring" | "one_time";
+  recurrence: "daily" | "weekly" | "monthly";
+  recurrence_weekdays: number[] | null;
+  recurrence_day_of_month: number | null;
   priority: "low" | "medium" | "high" | null;
   held: boolean;
   held_until: string | null;
   completed_at: string | null;
+  is_ask: boolean;
+  ask_person_name: string | null;
+  deactivated: boolean;
   due_date: string | null;
   due_time: string | null;
   created_at: string;
@@ -34,7 +40,7 @@ export function useWorkNodes() {
         .select("*")
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as WorkNode[];
+      return (data ?? []) as unknown as WorkNode[];
     },
   });
 }
@@ -55,6 +61,8 @@ export function useCreateWorkNode() {
       priority?: "low" | "medium" | "high" | null;
       due_date?: string | null;
       due_time?: string | null;
+      is_ask?: boolean;
+      ask_person_name?: string | null;
     }) => {
       const { data: userData } = await supabase.auth.getUser();
       const user_id = userData.user?.id;
@@ -65,6 +73,8 @@ export function useCreateWorkNode() {
         recurrence: input.recurrence ?? "daily",
         recurrence_weekdays: input.recurrence_weekdays ?? null,
         recurrence_day_of_month: input.recurrence_day_of_month ?? null,
+        is_ask: input.is_ask ?? false,
+        ask_person_name: input.is_ask ? (input.ask_person_name ?? null) : null,
       };
       const { data, error } = await supabase
         .from("lifeos_work_nodes")
@@ -101,6 +111,9 @@ export function useUpdateWorkNode() {
       done_on?: string | null;
       node_type?: string;
       task_kind?: "recurring" | "one_time";
+      recurrence?: "daily" | "weekly" | "monthly";
+      recurrence_weekdays?: number[] | null;
+      recurrence_day_of_month?: number | null;
       priority?: "low" | "medium" | "high" | null;
       held?: boolean;
       held_until?: string | null;
@@ -109,6 +122,9 @@ export function useUpdateWorkNode() {
       sort_order?: number;
       due_date?: string | null;
       due_time?: string | null;
+      is_ask?: boolean;
+      ask_person_name?: string | null;
+      deactivated?: boolean;
     }) => {
       const { id, ...patch } = input;
       const { error } = await supabase

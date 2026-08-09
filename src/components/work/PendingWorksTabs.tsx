@@ -34,9 +34,12 @@ import { GroupedLines } from "./GroupedLines";
 import { HideUntilDialog } from "./WorkDialogs";
 import {
   buildPendingLines,
+  buildAskLines,
+  buildDeactivatedLines,
   isEffectivelyHeld,
   isOverdue,
   OVERDUE_CLASS,
+  type FlatLine,
   type Priority,
 } from "./work-helpers";
 
@@ -131,7 +134,17 @@ async function copyToClipboard(text: string) {
 // Tab persistence
 // ---------------------------------------------------------------------------
 
-const TAB_OPTIONS = ["all", "shown", "todo", "notes", "asks", "calls", "leads", "hidden"] as const;
+const TAB_OPTIONS = [
+  "all",
+  "shown",
+  "todo",
+  "notes",
+  "asks",
+  "calls",
+  "leads",
+  "hidden",
+  "deactivated",
+] as const;
 type PendingTab = (typeof TAB_OPTIONS)[number];
 const TAB_KEY = "lifeos:work:pending-tab";
 
@@ -247,7 +260,7 @@ function TodoSection({
                               )}
                             >
                               {s.title}
-</span>
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -374,11 +387,12 @@ function NotesTab() {
 // Asks tab
 // ---------------------------------------------------------------------------
 
-function AsksTab({ today }: { today: string }) {
+function AsksTab({ today, byParent }: { today: string; byParent: Map<string | null, WorkNode[]> }) {
   const { data: asks = [] } = useAsksLite();
   const visible = asks.filter((a) => !a.completed && !isEffectivelyHeld(a.held, a.held_until));
+  const workAskLines = useMemo(() => buildAskLines(byParent, today), [byParent, today]);
 
-  if (visible.length === 0) {
+  if (visible.length === 0 && workAskLines.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
         Nothing pending in Asks.
@@ -387,30 +401,70 @@ function AsksTab({ today }: { today: string }) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <HelpCircle className="h-4 w-4 text-primary" />
-        <p className="text-sm font-semibold">Asks</p>
-        <span className="text-xs text-muted-foreground">· {visible.length}</span>
-      </div>
-      <div className="space-y-1.5">
-        {visible.map((a) => {
-          const overdue = !!a.due_date && a.due_date < today;
-          return (
-            <div key={a.id} className="rounded-lg px-2 py-1.5 text-sm">
-              <p className={cn("font-medium", overdue && cn(OVERDUE_CLASS, "font-semibold"))}>
-                {a.title}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {a.person_name && <>from {a.person_name} · </>}
-                {a.due_date}
-                {a.due_time ? ` · ${a.due_time}` : ""}
-                {overdue && " · Overdue"}
-              </p>
-            </div>
-          );
-        })}
-      </div>
+    <div className="space-y-4">
+      {workAskLines.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold">From Work &amp; Projects</p>
+            <span className="text-xs text-muted-foreground">· {workAskLines.length}</span>
+          </div>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Managed from Work &amp; Projects — edit or un-mark there, not here.
+          </p>
+          <div className="space-y-1.5">
+            {workAskLines.map(({ path, leaf }) => {
+              const overdue = isOverdue(leaf.due_date, false, today);
+              return (
+                <div
+                  key={path.map((p) => p.id).join(">")}
+                  className="rounded-lg px-2 py-1.5 text-sm"
+                >
+                  <p className={cn("font-medium", overdue && cn(OVERDUE_CLASS, "font-semibold"))}>
+                    {path.map((n) => n.title).join(" › ")}
+                  </p>
+                  {(leaf.ask_person_name || leaf.due_date) && (
+                    <p className="text-xs text-muted-foreground">
+                      {leaf.ask_person_name && <>from {leaf.ask_person_name} · </>}
+                      {leaf.due_date}
+{leaf.due_time ? ` · ${leaf.due_time}` : ""}
+                      {overdue && " · Overdue"}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {visible.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold">Asks</p>
+            <span className="text-xs text-muted-foreground">· {visible.length}</span>
+          </div>
+          <div className="space-y-1.5">
+            {visible.map((a) => {
+              const overdue = !!a.due_date && a.due_date < today;
+              return (
+                <div key={a.id} className="rounded-lg px-2 py-1.5 text-sm">
+                  <p className={cn("font-medium", overdue && cn(OVERDUE_CLASS, "font-semibold"))}>
+                    {a.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {a.person_name && <>from {a.person_name} · </>}
+                    {a.due_date}
+                    {a.due_time ? ` · ${a.due_time}` : ""}
+                    {overdue && " · Overdue"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -477,7 +531,7 @@ function LeadsTab() {
     return m;
   }, [visible]);
 
-if (visible.length === 0) {
+  if (visible.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
         No open client leads.
@@ -508,6 +562,62 @@ if (visible.length === 0) {
 }
 
 // ---------------------------------------------------------------------------
+// Deactivated tab
+// ---------------------------------------------------------------------------
+
+function DeactivatedGroups({
+  lines,
+  onToggleDeactivate,
+}: {
+  lines: FlatLine[];
+  onToggleDeactivate: (n: WorkNode) => void;
+}) {
+  const groups = new Map<string, FlatLine[]>();
+  for (const l of lines) {
+    const key = l.path[0].id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(l);
+  }
+
+  return (
+    <div className="space-y-4">
+      {[...groups.entries()].map(([companyId, items]) => {
+        const company = items[0].path[0];
+        return (
+          <div key={companyId} className="rounded-2xl border border-border bg-card p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <p className="text-sm font-semibold">{company.title}</p>
+              <span className="text-xs text-muted-foreground">· {items.length}</span>
+            </div>
+            <div className="space-y-1.5">
+              {items.map(({ path, leaf }) => (
+                <div
+                  key={path.map((p) => p.id).join(">")}
+                  className="flex items-start justify-between gap-2 rounded-lg px-2 py-1.5 text-sm"
+                >
+                  <span className="min-w-0 break-words text-muted-foreground">
+                    {path.map((n) => n.title).join(" › ")}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0 gap-1 px-2 text-xs"
+                    onClick={() => onToggleDeactivate(leaf)}
+                  >
+                    Activate
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main tabbed Pending Works view
 // ---------------------------------------------------------------------------
 
@@ -516,16 +626,20 @@ export function PendingWorksTabs({
   today,
   onToggleDone,
   onSetPriority,
+  onToggleDeactivate,
 }: {
   byParent: Map<string | null, WorkNode[]>;
   today: string;
   onToggleDone: (n: WorkNode) => void;
   onSetPriority: (n: WorkNode, p: Priority) => void;
+  onToggleDeactivate: (n: WorkNode) => void;
 }) {
   const [tab, setTab] = useState<PendingTab>(loadPendingTab);
   useEffect(() => {
     savePendingTab(tab);
   }, [tab]);
+
+  const deactivatedLines = useMemo(() => buildDeactivatedLines(byParent), [byParent]);
 
   const lines = useMemo(() => buildPendingLines(byParent, today), [byParent, today]);
   const shownLines = useMemo(
@@ -533,7 +647,7 @@ export function PendingWorksTabs({
     [lines],
   );
   const hiddenLines = useMemo(
-    () => lines.filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until)),
+() => lines.filter((l) => isEffectivelyHeld(l.leaf.held, l.leaf.held_until)),
     [lines],
   );
 
@@ -592,6 +706,7 @@ export function PendingWorksTabs({
           <TabsTrigger value="calls">Calls</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
           <TabsTrigger value="hidden">Hidden ({totalHidden})</TabsTrigger>
+          <TabsTrigger value="deactivated">Deactivated ({deactivatedLines.length})</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -657,7 +772,7 @@ export function PendingWorksTabs({
       )}
 
       {tab === "notes" && <NotesTab />}
-      {tab === "asks" && <AsksTab today={today} />}
+      {tab === "asks" && <AsksTab today={today} byParent={byParent} />}
       {tab === "calls" && <CallsTab />}
       {tab === "leads" && <LeadsTab />}
 
@@ -687,6 +802,15 @@ export function PendingWorksTabs({
               onHide={setHidingTask}
             />
           </div>
+        ))}
+
+      {tab === "deactivated" &&
+        (deactivatedLines.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            Nothing deactivated right now.
+          </div>
+        ) : (
+          <DeactivatedGroups lines={deactivatedLines} onToggleDeactivate={onToggleDeactivate} />
         ))}
 
       <HideUntilDialog
