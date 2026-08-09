@@ -94,11 +94,11 @@ function AsksPage() {
       <PageHeader
         title="Asks"
         subtitle='Things you asked someone for — "Get PDF from Mauli, 24 Jul, 6 PM."'
-        action={
-          <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-            <Plus className="h-4 w-4" /> New ask
-          </Button>
-        }
+        // action={
+        //   <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+        //     <Plus className="h-4 w-4" /> New ask
+        //   </Button>
+        // }
       />
 
       {asks.length > 0 && (

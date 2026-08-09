@@ -97,10 +97,10 @@ export function EditForm({
       )}
       <div className="space-y-2 rounded-lg border border-border/60 p-2.5">
         <Label>Ask</Label>
-        <p className="text-xs text-muted-foreground">
+        {/* <p className="text-xs text-muted-foreground">
           Mark this as an ask to show it on the Asks page and the Asks tab of Pending Works, with
           its full company → task path. Default is No.
-        </p>
+        </p> */}
         <div className="flex gap-2">
           <Button
             type="button"

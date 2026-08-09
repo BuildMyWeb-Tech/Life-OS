@@ -29,16 +29,10 @@ import { cn } from "@/lib/utils";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/routine", label: "Daily Routine", icon: ListChecks },
-  {
-    to: "/work",
-    label: "Work & Projects",
-    icon: Briefcase,
-    children: [
-      { to: "/client-calls", label: "Client Calls", icon: Phone },
-      { to: "/client-leads", label: "Client Leads", icon: Target },
-      { to: "/asks", label: "Asks", icon: HelpCircle },
-    ],
-  },
+  { to: "/work", label: "Work & Projects", icon: Briefcase, },
+  { to: "/client-calls", label: "Client Calls", icon: Phone }, 
+  { to: "/client-leads", label: "Client Leads", icon: Target },
+  { to: "/asks", label: "Asks", icon: HelpCircle },
   { to: "/tasks", label: "To Do List", icon: CheckSquare },
   { to: "/notes", label: "Notes", icon: StickyNote },
   { to: "/habits", label: "Habits", icon: Flame },
@@ -98,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   />
                 )}
               </Link>
-              {children && (
+              {/* {children && (
                 <div className="ml-5 mt-1 flex flex-col gap-1 border-l border-sidebar-border pl-3">
                   {children.map((child) => {
                     const childActive = pathname === child.to;
@@ -121,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     );
                   })}
                 </div>
-              )}
+              )} */}
             </div>
           );
         })}

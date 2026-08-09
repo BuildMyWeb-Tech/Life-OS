@@ -478,16 +478,15 @@ toast.info("Nothing to reset — everything is already pending.");
                 onClick={() => setShowPriorityPicker(true)}
                 className="text-xs text-primary hover:underline"
               >
-                + Set priority (optional)
-              </button>
+                + Set priority              </button>
             )}
           </div>
           <div className="space-y-2 rounded-lg border border-border/60 p-2.5">
             <Label>Ask</Label>
-            <p className="text-xs text-muted-foreground">
+            {/* <p className="text-xs text-muted-foreground">
               Mark this as an ask to show it on the Asks page and the Asks tab of Pending Works,
               with its full company → task path. Default is No.
-            </p>
+            </p> */}
             <div className="flex gap-2">
               <Button
                 type="button"
