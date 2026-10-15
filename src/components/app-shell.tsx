@@ -18,35 +18,41 @@ import {
   Target,
   Phone,
   HelpCircle,
+  Settings,
 } from "lucide-react";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode, type ComponentType } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { logout, attachSessionKeepAlive } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Reminders } from "@/features/reminders";
 import { cn } from "@/lib/utils";
+import { usePageVisibility } from "@/hooks/use-page-visibility";
+import type { PageKey } from "@/features/page-visibility";
 
-const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/routine", label: "Daily Routine", icon: ListChecks },
-  { to: "/work", label: "Work & Projects", icon: Briefcase, },
-  { to: "/client-calls", label: "Client Calls", icon: Phone }, 
-  { to: "/client-leads", label: "Client Leads", icon: Target },
-  { to: "/asks", label: "Asks", icon: HelpCircle },
-  { to: "/tasks", label: "To Do List", icon: CheckSquare },
-  { to: "/notes", label: "Notes", icon: StickyNote },
-  { to: "/habits", label: "Habits", icon: Flame },
-  { to: "/vision-board", label: "Vision Board", icon: Wand2 },
-  { to: "/report", label: "Report", icon: BarChart3 },
-  { to: "/calendar", label: "Calendar", icon: CalendarIcon },
-  { to: "/categories", label: "Categories", icon: Tags },
-  { to: "/negative-habits", label: "Avoid List", icon: Ban },
-] as const;
+const nav: { to: string; label: string; icon: ComponentType<{ className?: string }>; pageKey?: PageKey }[] = [
+  { to: "/dashboard",       label: "Dashboard",       icon: LayoutDashboard, pageKey: "dashboard" },
+  { to: "/routine",         label: "Daily Routine",   icon: ListChecks,      pageKey: "routine" },
+  { to: "/work",            label: "Work & Projects", icon: Briefcase,       pageKey: "work" },
+  { to: "/client-calls",    label: "Client Calls",    icon: Phone,           pageKey: "client-calls" },
+  { to: "/client-leads",    label: "Client Leads",    icon: Target,          pageKey: "client-leads" },
+  { to: "/asks",            label: "Asks",            icon: HelpCircle,      pageKey: "asks" },
+  { to: "/tasks",           label: "To Do List",      icon: CheckSquare,     pageKey: "tasks" },
+  { to: "/notes",           label: "Notes",           icon: StickyNote,      pageKey: "notes" },
+  { to: "/habits",          label: "Habits",          icon: Flame,           pageKey: "habits" },
+  { to: "/vision-board",    label: "Vision Board",    icon: Wand2,           pageKey: "vision-board" },
+  { to: "/report",          label: "Report",          icon: BarChart3,       pageKey: "report" },
+  { to: "/calendar",        label: "Calendar",        icon: CalendarIcon,    pageKey: "calendar" },
+  { to: "/categories",      label: "Categories",      icon: Tags,            pageKey: "categories" },
+  { to: "/negative-habits", label: "Avoid List",      icon: Ban,             pageKey: "negative-habits" },
+  // Settings is always visible — no pageKey filter
+  { to: "/settings",        label: "Settings",        icon: Settings },
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+  const { isEnabled } = usePageVisibility();
 
   useEffect(() => attachSessionKeepAlive(), []);
 
@@ -54,6 +60,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     await logout();
     navigate({ to: "/auth", replace: true });
   };
+
+  const visibleNav = nav.filter((item) =>
+    !item.pageKey || isEnabled(item.pageKey),
+  );
 
   const SidebarContent = (
     <div className="flex h-full flex-col gap-2 p-4">
@@ -67,10 +77,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </Link>
       <nav className="flex flex-col gap-1">
-        {nav.map((item) => {
+        {visibleNav.map((item) => {
           const active = pathname === item.to;
           const Icon = item.icon;
-          const children = "children" in item ? item.children : undefined;
           return (
             <div key={item.to}>
               <Link
@@ -173,18 +182,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-const bottomNav = [
-  { to: "/routine", label: "Routine", icon: ListChecks },
-  { to: "/work", label: "Work", icon: Briefcase },
-  { to: "/tasks", label: "To Do", icon: CheckSquare },
-  { to: "/notes", label: "Notes", icon: StickyNote },
-  // { to: "/client-leads", label: "Leads", icon: Target },
-  // { to: "/client-calls", label: "Calls", icon: Phone },
-  { to: "/vision-board", label: "Vision", icon: Wand2 },
-  { to: "/report", label: "Report", icon: BarChart3 },
-] as const;
+const bottomNavAll: { to: string; label: string; icon: ComponentType<{ className?: string }>; pageKey?: PageKey }[] = [
+  { to: "/routine",      label: "Routine", icon: ListChecks, pageKey: "routine" },
+  { to: "/work",         label: "Work",    icon: Briefcase,  pageKey: "work" },
+  { to: "/tasks",        label: "To Do",   icon: CheckSquare, pageKey: "tasks" },
+  { to: "/notes",        label: "Notes",   icon: StickyNote,  pageKey: "notes" },
+  { to: "/vision-board", label: "Vision",  icon: Wand2,       pageKey: "vision-board" },
+  { to: "/report",       label: "Report",  icon: BarChart3,   pageKey: "report" },
+];
 
 function BottomNav({ pathname }: { pathname: string }) {
+  const { isEnabled } = usePageVisibility();
+  const bottomNav = bottomNavAll.filter((item) => !item.pageKey || isEnabled(item.pageKey));
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/85 backdrop-blur-xl lg:hidden">
       <ul className="mx-auto flex max-w-2xl overflow-x-auto">

@@ -43,7 +43,7 @@ function RegisterPage() {
     try {
       await register(trimmedUsername, password);
       toast.success(`Welcome to LifeOS, ${trimmedUsername} 👋`);
-      nav({ to: "/dashboard" });
+      nav({ to: "/onboarding" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not create account";
       setErr(message);
